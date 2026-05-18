@@ -23,7 +23,7 @@ export interface League {
   matches: Match[];
 }
 
-export interface BetSlipItem {
+export interface PredictionItem {
   matchId: string;
   home: string;
   away: string;

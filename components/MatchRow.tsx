@@ -1,6 +1,7 @@
 "use client";
 
 import { Match } from "@/types";
+import { getTopPick } from "@/lib/utils";
 import OddsButton from "./OddsButton";
 import { ChevronRight } from "lucide-react";
 import clsx from "clsx";
@@ -11,6 +12,7 @@ interface Props {
 
 export default function MatchRow({ match }: Props) {
   const isLive = match.status === "live";
+  const pick = getTopPick(match);
 
   return (
     <div className="flex items-center gap-2 px-3 py-2.5 hover:bg-brand-dark-3 transition-colors border-b border-brand-dark-5 group">
@@ -56,11 +58,20 @@ export default function MatchRow({ match }: Props) {
         </div>
       </div>
 
-      {/* Odds */}
+      {/* Confidence indicator */}
+      {pick && (
+        <div className="hidden sm:flex items-center gap-1 text-[10px] text-gray-500 shrink-0 mr-1">
+          <span>🔮</span>
+          <span className="text-brand-green font-semibold">{pick.label}</span>
+          <span>{pick.pct}%</span>
+        </div>
+      )}
+
+      {/* Prediction buttons */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <OddsButton match={match} market="home" label="1" />
-        <OddsButton match={match} market="draw" label="X" />
-        <OddsButton match={match} market="away" label="2" />
+        <OddsButton match={match} market="home" label="Home" />
+        <OddsButton match={match} market="draw" label="Draw" />
+        <OddsButton match={match} market="away" label="Away" />
       </div>
 
       {/* More markets */}

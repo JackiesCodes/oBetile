@@ -3,8 +3,8 @@ import "./globals.css";
 import ClientLayout from "@/components/ClientLayout";
 
 export const metadata: Metadata = {
-  title: "BetPlay — Sports Betting Botswana",
-  description: "Bet on soccer, basketball, cricket and more. Live odds, fast payouts in BWP.",
+  title: "oBetile — Sports Predictions Botswana",
+  description: "Predict match outcomes for soccer, basketball, cricket and more. Live win probabilities in BWP.",
 };
 
 export default function RootLayout({

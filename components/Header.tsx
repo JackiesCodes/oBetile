@@ -11,11 +11,11 @@ export default function Header() {
     <header className="h-14 bg-black border-b border-brand-dark-5 flex items-center px-4 gap-3 sticky top-0 z-50">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-1 shrink-0">
-        <div className="bg-brand-green px-3 py-1.5 rounded font-extrabold text-black text-lg tracking-tight leading-none">
-          BET
+        <div className="bg-brand-green w-7 h-7 rounded flex items-center justify-center font-extrabold text-black text-lg leading-none">
+          o
         </div>
         <div className="font-extrabold text-white text-lg tracking-tight leading-none">
-          PLAY
+          Betile
         </div>
       </Link>
 
@@ -42,7 +42,7 @@ export default function Header() {
         <Search size={14} className="text-gray-400 shrink-0" />
         <input
           type="text"
-          placeholder="Search events..."
+          placeholder="Search matches..."
           className="bg-transparent text-sm text-white placeholder-gray-500 outline-none w-full"
         />
       </div>

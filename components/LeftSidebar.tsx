@@ -24,9 +24,9 @@ export default function LeftSidebar() {
       {/* Quick Links */}
       <div className="p-3 border-b border-brand-dark-5">
         {[
-          { icon: <Zap size={14} />, label: "Live Betting", href: "/live", badge: "111" },
+          { icon: <Zap size={14} />, label: "Live Predictions", href: "/live", badge: "111" },
           { icon: <Star size={14} />, label: "My Favourites", href: "/favourites" },
-          { icon: <Trophy size={14} />, label: "Outrights", href: "/outrights" },
+          { icon: <Trophy size={14} />, label: "Season Picks", href: "/outrights" },
           { icon: <Calendar size={14} />, label: "Upcoming", href: "/upcoming" },
         ].map((item) => (
           <Link

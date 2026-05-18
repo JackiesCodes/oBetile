@@ -3,8 +3,8 @@
 import { useState } from "react";
 import clsx from "clsx";
 
-const tabs = ["Live", "Highlights", "Upcoming", "Outrights"];
-const markets = ["1X2", "Double Chance", "BTTS (GG/NG)", "Total Goals", "First Team To Score", "Booking 1X2"];
+const tabs = ["Live", "Highlights", "Upcoming", "Season Picks"];
+const markets = ["Match Result", "Double Chance", "BTTS (GG/NG)", "Total Goals", "First Team To Score"];
 
 interface Props {
   activeTab: string;
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function SportsTabBar({ activeTab, onTabChange }: Props) {
-  const [activeMarket, setActiveMarket] = useState("1X2");
+  const [activeMarket, setActiveMarket] = useState("Match Result");
 
   return (
     <div className="bg-brand-dark-2 border-b border-brand-dark-5 sticky top-0 z-10">

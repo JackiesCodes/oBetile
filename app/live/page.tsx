@@ -37,7 +37,7 @@ export default function LivePage() {
           <Activity size={18} className="text-brand-green" />
         </div>
         <div>
-          <h1 className="text-white font-bold text-lg leading-tight">Live Betting</h1>
+          <h1 className="text-white font-bold text-lg leading-tight">Live Predictions</h1>
           <p className="text-gray-400 text-xs">{liveMatches.length} live events right now</p>
         </div>
       </div>

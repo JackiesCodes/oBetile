@@ -1,25 +1,25 @@
 "use client";
 
 import { createContext, useContext, useState, ReactNode } from "react";
-import { BetSlipItem } from "@/types";
+import { PredictionItem } from "@/types";
 
-interface BetSlipContextType {
-  items: BetSlipItem[];
-  addBet: (item: BetSlipItem) => void;
+interface PredictionContextType {
+  items: PredictionItem[];
+  addBet: (item: PredictionItem) => void;
   removeBet: (matchId: string, market: string) => void;
-  clearSlip: () => void;
+  clearAll: () => void;
   hasBet: (matchId: string, market: string) => boolean;
   stake: number;
   setStake: (v: number) => void;
 }
 
-const BetSlipContext = createContext<BetSlipContextType | undefined>(undefined);
+const PredictionContext = createContext<PredictionContextType | undefined>(undefined);
 
-export function BetSlipProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<BetSlipItem[]>([]);
+export function PredictionProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<PredictionItem[]>([]);
   const [stake, setStake] = useState<number>(0);
 
-  const addBet = (item: BetSlipItem) => {
+  const addBet = (item: PredictionItem) => {
     setItems((prev) => {
       const exists = prev.find(
         (b) => b.matchId === item.matchId && b.market === item.market
@@ -39,22 +39,22 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const clearSlip = () => setItems([]);
+  const clearAll = () => setItems([]);
 
   const hasBet = (matchId: string, market: string) =>
     items.some((b) => b.matchId === matchId && b.market === market);
 
   return (
-    <BetSlipContext.Provider
-      value={{ items, addBet, removeBet, clearSlip, hasBet, stake, setStake }}
+    <PredictionContext.Provider
+      value={{ items, addBet, removeBet, clearAll, hasBet, stake, setStake }}
     >
       {children}
-    </BetSlipContext.Provider>
+    </PredictionContext.Provider>
   );
 }
 
-export function useBetSlip() {
-  const ctx = useContext(BetSlipContext);
-  if (!ctx) throw new Error("useBetSlip must be used inside BetSlipProvider");
+export function usePredictions() {
+  const ctx = useContext(PredictionContext);
+  if (!ctx) throw new Error("usePredictions must be used inside PredictionProvider");
   return ctx;
 }

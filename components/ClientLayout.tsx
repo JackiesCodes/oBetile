@@ -1,13 +1,13 @@
 "use client";
 
-import { BetSlipProvider } from "@/context/BetSlipContext";
+import { PredictionProvider } from "@/context/BetSlipContext";
 import Header from "@/components/Header";
 import LeftSidebar from "@/components/LeftSidebar";
 import BetSlip from "@/components/BetSlip";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
-    <BetSlipProvider>
+    <PredictionProvider>
       <Header />
       <div className="flex h-[calc(100vh-56px)] overflow-hidden">
         <LeftSidebar />
@@ -16,6 +16,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </main>
         <BetSlip />
       </div>
-    </BetSlipProvider>
+    </PredictionProvider>
   );
 }

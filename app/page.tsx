@@ -56,7 +56,7 @@ export default function HomePage() {
           <div className="px-3 pt-3 pb-1">
             <div className="flex items-center gap-2 mb-2">
               <Flame size={14} className="text-orange-400" />
-              <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Featured Matches</span>
+              <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Top Predictions</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
               {matches.slice(19, 21).map((m) => (
@@ -79,7 +79,7 @@ export default function HomePage() {
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
             <Zap size={32} />
-            <p className="text-sm">No matches available for this filter.</p>
+            <p className="text-sm">No predictions available for this filter.</p>
           </div>
         )}
       </div>

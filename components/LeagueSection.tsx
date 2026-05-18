@@ -29,12 +29,9 @@ export default function LeagueSection({ league, country, matches }: Props) {
           <span className="text-sm font-semibold text-gray-200">{league}</span>
           <span className="text-xs text-gray-500 ml-2">{country}</span>
         </div>
-        {liveCount > 0 && (
-          <span className="flex items-center gap-1 text-[10px] text-brand-green font-bold bg-brand-green/10 px-1.5 py-0.5 rounded">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
-            {liveCount} LIVE
-          </span>
-        )}
+        <span className="text-[10px] text-gray-500 font-medium">
+          {matches.length} match{matches.length !== 1 ? "es" : ""}{liveCount > 0 ? ` · ${liveCount} live` : " · upcoming"}
+        </span>
         <Star size={13} className="text-gray-600 hover:text-yellow-400 transition-colors shrink-0 mr-1" />
         {collapsed ? (
           <ChevronDown size={14} className="text-gray-500 shrink-0" />
@@ -50,7 +47,7 @@ export default function LeagueSection({ league, country, matches }: Props) {
             <div className="w-16 shrink-0" />
             <div className="flex-1" />
             <div className="flex gap-1.5 shrink-0">
-              {["1", "X", "2"].map((h) => (
+              {["Home", "Draw", "Away"].map((h) => (
                 <div key={h} className="w-16 text-center text-[11px] text-gray-500 font-semibold">
                   {h}
                 </div>

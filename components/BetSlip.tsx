@@ -1,16 +1,17 @@
 "use client";
 
-import { useBetSlip } from "@/context/BetSlipContext";
-import { X, Trash2, ChevronDown } from "lucide-react";
+import { usePredictions } from "@/context/BetSlipContext";
+import { oddsToPercent } from "@/lib/utils";
+import { X, Trash2 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
 
-type Tab = "betslip" | "mybets";
+type Tab = "predictions" | "history";
 
 export default function BetSlip() {
-  const { items, removeBet, clearSlip, stake, setStake } = useBetSlip();
-  const [tab, setTab] = useState<Tab>("betslip");
-  const [betType, setBetType] = useState<"single" | "multi">("multi");
+  const { items, removeBet, clearAll, stake, setStake } = usePredictions();
+  const [tab, setTab] = useState<Tab>("predictions");
+  const [betType, setBetType] = useState<"single" | "parlay">("parlay");
 
   const totalOdds = items.reduce((acc, b) => acc * b.odds, 1);
   const potentialWin = stake > 0 ? (stake * totalOdds).toFixed(2) : "0.00";
@@ -19,7 +20,7 @@ export default function BetSlip() {
     <aside className="w-72 shrink-0 bg-brand-dark-2 border-l border-brand-dark-5 flex flex-col hidden xl:flex">
       {/* Tabs */}
       <div className="flex border-b border-brand-dark-5">
-        {(["betslip", "mybets"] as Tab[]).map((t) => (
+        {(["predictions", "history"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -30,9 +31,9 @@ export default function BetSlip() {
                 : "text-gray-500 hover:text-gray-300"
             )}
           >
-            {t === "betslip" ? (
+            {t === "predictions" ? (
               <span className="flex items-center justify-center gap-1.5">
-                Bet Slip
+                Predictions
                 {items.length > 0 && (
                   <span className="bg-brand-green text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                     {items.length}
@@ -40,28 +41,28 @@ export default function BetSlip() {
                 )}
               </span>
             ) : (
-              "My Bets"
+              "History"
             )}
           </button>
         ))}
       </div>
 
-      {tab === "betslip" ? (
+      {tab === "predictions" ? (
         <div className="flex-1 flex flex-col overflow-hidden">
           {items.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">
               <div className="w-16 h-16 rounded-full bg-brand-dark-4 flex items-center justify-center">
-                <span className="text-3xl">🎯</span>
+                <span className="text-3xl">🔮</span>
               </div>
               <p className="text-gray-400 text-sm">
-                Your bet slip is empty. Click on odds to add selections.
+                Click any outcome to add a prediction.
               </p>
             </div>
           ) : (
             <>
-              {/* Single / Multi toggle */}
+              {/* Single / Parlay toggle */}
               <div className="flex p-2 gap-1 border-b border-brand-dark-5">
-                {(["single", "multi"] as const).map((bt) => (
+                {(["single", "parlay"] as const).map((bt) => (
                   <button
                     key={bt}
                     onClick={() => setBetType(bt)}
@@ -72,12 +73,12 @@ export default function BetSlip() {
                         : "bg-brand-dark-4 text-gray-400 hover:text-white"
                     )}
                   >
-                    {bt}
+                    {bt === "single" ? "Single" : "Parlay"}
                   </button>
                 ))}
               </div>
 
-              {/* Bets list */}
+              {/* Predictions list */}
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {items.map((item) => (
                   <div
@@ -92,11 +93,11 @@ export default function BetSlip() {
                         <div className="text-[11px] text-gray-400 truncate">
                           {item.home} vs {item.away}
                         </div>
-                        <div className="text-[11px] text-gray-500">1X2 Market</div>
+                        <div className="text-[11px] text-gray-500">Match Result</div>
                       </div>
                       <div className="flex items-start gap-2 shrink-0">
                         <span className="text-brand-green font-bold text-sm">
-                          {item.odds.toFixed(2)}
+                          {oddsToPercent(item.odds)}%
                         </span>
                         <button
                           onClick={() => removeBet(item.matchId, item.market)}
@@ -110,11 +111,11 @@ export default function BetSlip() {
                       <div className="mt-2">
                         <input
                           type="number"
-                          placeholder="Stake (BWP)"
+                          placeholder="Entry Amount (BWP)"
                           className="w-full bg-brand-dark-5 text-white text-xs rounded px-2 py-1.5 outline-none border border-brand-dark-5 focus:border-brand-green"
                         />
                         <div className="flex justify-between mt-1">
-                          <span className="text-[10px] text-gray-500">Potential win</span>
+                          <span className="text-[10px] text-gray-500">Potential Return</span>
                           <span className="text-[10px] text-brand-green font-semibold">BWP —</span>
                         </div>
                       </div>
@@ -123,11 +124,11 @@ export default function BetSlip() {
                 ))}
               </div>
 
-              {/* Stake + Total */}
-              {betType === "multi" && (
+              {/* Entry + Total */}
+              {betType === "parlay" && (
                 <div className="p-3 border-t border-brand-dark-5 space-y-3">
                   <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Total Odds</span>
+                    <span>Parlay Odds</span>
                     <span className="text-white font-bold text-sm">{totalOdds.toFixed(2)}</span>
                   </div>
 
@@ -138,7 +139,7 @@ export default function BetSlip() {
                       min={0}
                       value={stake || ""}
                       onChange={(e) => setStake(parseFloat(e.target.value) || 0)}
-                      placeholder="Enter stake"
+                      placeholder="Entry Amount"
                       className="w-full bg-brand-dark-4 text-white text-sm rounded px-3 py-2.5 pl-10 outline-none border border-brand-dark-5 focus:border-brand-green"
                     />
                   </div>
@@ -157,20 +158,20 @@ export default function BetSlip() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">Potential Win</span>
+                    <span className="text-xs text-gray-400">Potential Return</span>
                     <span className="text-brand-green font-bold">BWP {potentialWin}</span>
                   </div>
 
                   <button className="w-full bg-brand-green hover:bg-brand-green-hover text-black font-bold py-3 rounded-lg text-sm transition-colors">
-                    Place Bet
+                    Submit Prediction
                   </button>
 
                   <button
-                    onClick={clearSlip}
+                    onClick={clearAll}
                     className="w-full flex items-center justify-center gap-1.5 text-gray-500 hover:text-red-400 text-xs transition-colors py-1"
                   >
                     <Trash2 size={12} />
-                    Clear Slip
+                    Clear All
                   </button>
                 </div>
               )}
@@ -183,21 +184,13 @@ export default function BetSlip() {
             <span className="text-3xl">📋</span>
           </div>
           <p className="text-gray-400 text-sm">
-            Log in to view your recent bets.
+            Log in to view your prediction history.
           </p>
           <button className="w-full bg-brand-green text-black font-bold py-2.5 rounded text-sm">
             Log In
           </button>
         </div>
       )}
-
-      {/* Trending Booking Codes */}
-      <div className="border-t border-brand-dark-5 p-3">
-        <button className="w-full flex items-center justify-between text-xs text-gray-400 hover:text-white transition-colors">
-          <span className="font-semibold">Trending Booking Codes</span>
-          <ChevronDown size={13} />
-        </button>
-      </div>
     </aside>
   );
 }

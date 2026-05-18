@@ -64,12 +64,12 @@ export default function SoccerPage() {
         {/* SEO Footer */}
         <div className="px-4 py-6 border-t border-brand-dark-5 mt-4">
           <h2 className="text-white font-bold text-base mb-2">
-            Soccer Betting in Botswana — Bet Live with BetPlay
+            Soccer Predictions in Botswana — Predict with oBetile
           </h2>
           <p className="text-gray-500 text-xs leading-relaxed">
-            Bet on all your favourite matches from the Premier League to the UEFA Champions League
-            with great odds and live in-play markets. Register, deposit in Pula (BWP), and cash out
-            your winnings instantly. Enjoy exclusive soccer promotions built for Botswana.
+            Get win probability predictions for all your favourite matches from the Premier League
+            to the UEFA Champions League. Live match insights, real-time percentage forecasts, and
+            intelligent outcome analysis — all built for Botswana sports fans.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
             {["English Premier League", "UEFA Champions League", "Serie A", "La Liga"].map((l) => (
