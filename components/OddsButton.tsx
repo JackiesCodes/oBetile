@@ -75,6 +75,10 @@ export default function OddsButton({ match, market, label }: Props) {
           style={{ width: `${pct}%` }}
         />
       </div>
+      {/* Selected checkmark */}
+      {selected && (
+        <span className="absolute top-0.5 right-1 text-[9px] text-black/60 leading-none font-bold z-10">✓</span>
+      )}
     </button>
   );
 }

@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Search, Menu, X, Bell, ChevronDown } from "lucide-react";
+import { Search, Menu, X, Bell } from "lucide-react";
+import { usePredictions } from "@/context/BetSlipContext";
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { items } = usePredictions();
 
   return (
     <header className="h-14 bg-black border-b border-brand-dark-5 flex items-center px-4 gap-3 sticky top-0 z-50">
@@ -49,6 +51,13 @@ export default function Header() {
 
       {/* Auth Buttons */}
       <div className="flex items-center gap-2">
+        {/* Mobile prediction count badge (< xl, only when there are picks) */}
+        {items.length > 0 && (
+          <div className="xl:hidden flex items-center gap-1 bg-brand-dark-4 border border-brand-green/60 text-white text-xs font-bold px-2.5 py-1.5 rounded-full">
+            <span>🔮</span>
+            <span className="text-brand-green">{items.length}</span>
+          </div>
+        )}
         <button className="hidden sm:block text-sm text-white bg-brand-dark-4 hover:bg-brand-dark-5 border border-brand-dark-5 px-4 py-1.5 rounded font-medium transition-colors">
           Log In
         </button>
