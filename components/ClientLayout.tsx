@@ -1,21 +1,31 @@
 "use client";
 
+import { useState } from "react";
 import { PredictionProvider } from "@/context/BetSlipContext";
+import { AuthProvider } from "@/context/AuthContext";
 import Header from "@/components/Header";
 import LeftSidebar from "@/components/LeftSidebar";
-import BetSlip from "@/components/BetSlip";
+import RightPanel from "@/components/RightPanel";
+import AuthModal from "@/components/AuthModal";
+import SearchModal from "@/components/SearchModal";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+
   return (
-    <PredictionProvider>
-      <Header />
-      <div className="flex h-[calc(100vh-56px)] overflow-hidden">
-        <LeftSidebar />
-        <main className="flex-1 overflow-y-auto bg-brand-dark">
-          {children}
-        </main>
-        <BetSlip />
-      </div>
-    </PredictionProvider>
+    <AuthProvider>
+      <PredictionProvider>
+        <Header onSearchOpen={() => setSearchOpen(true)} />
+        <AuthModal />
+        <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+          <LeftSidebar />
+          <main className="flex-1 overflow-y-auto bg-brand-dark">
+            {children}
+          </main>
+          <RightPanel />
+        </div>
+      </PredictionProvider>
+    </AuthProvider>
   );
 }

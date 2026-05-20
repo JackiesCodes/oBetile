@@ -10,9 +10,9 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          green: "#00b909",
-          "green-hover": "#00d40a",
-          "green-light": "#e6f9e7",
+          green: "#16a34a",
+          "green-hover": "#22c55e",
+          "green-light": "#dcfce7",
           dark: "#111111",
           "dark-2": "#1a1a1a",
           "dark-3": "#222222",
@@ -23,7 +23,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Rajdhani", "Inter", "sans-serif"],
+        rajdhani: ["Rajdhani", "sans-serif"],
       },
     },
   },

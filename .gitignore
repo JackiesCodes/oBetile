@@ -16,3 +16,13 @@ npm-debug.log*
 # firecrawl data
 .firecrawl/
 parse_sports.js
+
+# Supabase local dev temp files
+supabase/.temp/
+
+# Private/feature files (never commit)
+*.feature.ts
+*.private.ts
+
+# Build info
+tsconfig.tsbuildinfo

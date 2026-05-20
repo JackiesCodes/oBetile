@@ -4,7 +4,7 @@ import ClientLayout from "@/components/ClientLayout";
 
 export const metadata: Metadata = {
   title: "oBetile — Sports Predictions Botswana",
-  description: "Predict match outcomes for soccer, basketball, cricket and more. Live win probabilities in BWP.",
+  description: "AI-powered sports insights and match predictions for soccer, basketball, cricket and more.",
 };
 
 export default function RootLayout({

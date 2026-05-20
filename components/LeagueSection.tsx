@@ -47,11 +47,9 @@ export default function LeagueSection({ league, country, matches }: Props) {
             <div className="w-16 shrink-0" />
             <div className="flex-1" />
             <div className="flex gap-1.5 shrink-0">
-              {["Home", "Draw", "Away"].map((h) => (
-                <div key={h} className="w-16 text-center text-[11px] text-gray-500 font-semibold">
-                  {h}
-                </div>
-              ))}
+              <div className="text-[11px] text-gray-500 font-semibold w-28 text-right pr-1">
+                Predicted Winner
+              </div>
               <div className="w-4" />
             </div>
           </div>

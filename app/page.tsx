@@ -36,8 +36,15 @@ export default function HomePage() {
             href={`/sport/${sport.id}`}
             className="flex flex-col items-center gap-1 shrink-0 group"
           >
-            <div className="w-12 h-12 rounded-xl bg-brand-dark-4 group-hover:bg-brand-dark-5 flex items-center justify-center text-2xl transition-colors border border-transparent group-hover:border-brand-green">
-              {sport.icon}
+            <div className="relative">
+              <div className="w-12 h-12 rounded-xl bg-brand-dark-4 group-hover:bg-brand-dark-5 flex items-center justify-center text-2xl transition-colors border border-transparent group-hover:border-brand-green">
+                {sport.icon}
+              </div>
+              {(sport.liveCount ?? 0) > 0 && (
+                <span className="absolute -top-1 -right-1 bg-brand-green text-white text-[9px] font-bold min-w-[16px] h-4 rounded-full flex items-center justify-center px-0.5 ring-2 ring-brand-dark z-10">
+                  {sport.liveCount}
+                </span>
+              )}
             </div>
             <span className="text-[10px] text-gray-400 group-hover:text-white transition-colors text-center leading-tight w-14 truncate">
               {sport.name}

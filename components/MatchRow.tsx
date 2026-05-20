@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { Match } from "@/types";
 import { getTopPick } from "@/lib/utils";
-import OddsButton from "./OddsButton";
 import { ChevronRight } from "lucide-react";
 import clsx from "clsx";
 
@@ -15,9 +15,12 @@ export default function MatchRow({ match }: Props) {
   const pick = getTopPick(match);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5 hover:bg-brand-dark-3 transition-colors border-b border-brand-dark-5 group">
+    <Link
+      href={`/match/${match.id}`}
+      className="flex items-center gap-2 px-3 py-2.5 hover:bg-brand-dark-3 transition-colors border-b border-brand-dark-5 group cursor-pointer"
+    >
       {/* Time / Live indicator */}
-      <div className="w-16 shrink-0 text-center">
+      <div className="w-14 shrink-0 text-center">
         {isLive ? (
           <div className="flex flex-col items-center gap-0.5">
             <span className="flex items-center gap-1">
@@ -44,7 +47,7 @@ export default function MatchRow({ match }: Props) {
               {match.away}
             </div>
           </div>
-          {/* Score */}
+          {/* Score (live only) */}
           {isLive && match.score && (
             <div className="text-center shrink-0">
               <div className="text-brand-green font-bold text-sm leading-tight">
@@ -58,26 +61,16 @@ export default function MatchRow({ match }: Props) {
         </div>
       </div>
 
-      {/* Confidence indicator */}
+      {/* AI prediction chip */}
       {pick && (
-        <div className="hidden sm:flex items-center gap-1 text-[10px] text-gray-500 shrink-0 mr-1">
-          <span>🔮</span>
-          <span className="text-brand-green font-semibold">{pick.label}</span>
-          <span>{pick.pct}%</span>
+        <div className="hidden sm:flex flex-col items-center shrink-0 mr-1">
+          <span className="text-[9px] text-gray-500 uppercase leading-none mb-0.5">Predicted</span>
+          <span className="text-[11px] font-bold text-brand-green leading-none">{pick.label}</span>
+          <span className="text-[9px] text-gray-400 leading-none mt-0.5">{pick.pct}%</span>
         </div>
       )}
 
-      {/* Prediction buttons */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        <OddsButton match={match} market="home" label="Home" />
-        <OddsButton match={match} market="draw" label="Draw" />
-        <OddsButton match={match} market="away" label="Away" />
-      </div>
-
-      {/* More markets */}
-      <button className="text-gray-600 hover:text-brand-green transition-colors shrink-0">
-        <ChevronRight size={16} />
-      </button>
-    </div>
+      <ChevronRight size={15} className="text-gray-600 group-hover:text-brand-green transition-colors shrink-0" />
+    </Link>
   );
 }

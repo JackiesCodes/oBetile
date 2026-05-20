@@ -9,15 +9,12 @@ interface PredictionContextType {
   removeBet: (matchId: string, market: string) => void;
   clearAll: () => void;
   hasBet: (matchId: string, market: string) => boolean;
-  stake: number;
-  setStake: (v: number) => void;
 }
 
 const PredictionContext = createContext<PredictionContextType | undefined>(undefined);
 
 export function PredictionProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<PredictionItem[]>([]);
-  const [stake, setStake] = useState<number>(0);
 
   const addBet = (item: PredictionItem) => {
     setItems((prev) => {
@@ -46,7 +43,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
 
   return (
     <PredictionContext.Provider
-      value={{ items, addBet, removeBet, clearAll, hasBet, stake, setStake }}
+      value={{ items, addBet, removeBet, clearAll, hasBet }}
     >
       {children}
     </PredictionContext.Provider>
