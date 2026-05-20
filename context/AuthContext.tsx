@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -24,9 +24,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "signup">("login");
 
-  const supabase = createClient();
-
   useEffect(() => {
+    if (!hasSupabaseConfig()) {
+      setLoading(false);
+      return;
+    }
+    const supabase = createClient();
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
@@ -40,16 +44,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!hasSupabaseConfig()) return { error: "Auth not configured" };
+    const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
   };
 
   const signUp = async (email: string, password: string) => {
+    if (!hasSupabaseConfig()) return { error: "Auth not configured" };
+    const supabase = createClient();
     const { error } = await supabase.auth.signUp({ email, password });
     return { error: error?.message ?? null };
   };
 
   const signOut = async () => {
+    if (!hasSupabaseConfig()) return;
+    const supabase = createClient();
     await supabase.auth.signOut();
   };
 
