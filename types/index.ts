@@ -94,6 +94,25 @@ export interface APIStatistic {
   value: string | number | null;
 }
 
+export interface NewsItem {
+  id: string;
+  type: "injury" | "result";
+  text: string;
+  timestamp: string;
+}
+
+export interface CommunityPost {
+  id: string;
+  user_id: string;
+  content: string;
+  fixture_id: number | null;
+  league_id: number | null;
+  sport: string;
+  likes_count: number;
+  created_at: string;
+  profiles: { username: string | null; avatar_url: string | null } | null;
+}
+
 export interface APIPrediction {
   winner: { id: number | null; name: string | null; comment: string } | null;
   win_or_draw: boolean;

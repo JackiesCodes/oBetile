@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Star, Trophy, Zap, Calendar, X, Trash2 } from "lucide-react";
+import { Star, Trophy, Zap, Calendar, X, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import clsx from "clsx";
 import { usePredictions } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
@@ -21,6 +22,7 @@ export default function LeftSidebar() {
   const pathname = usePathname();
   const { items, removeBet, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
+  const [topLeaguesOpen, setTopLeaguesOpen] = useState(false);
 
   return (
     <aside className="w-56 shrink-0 bg-brand-dark-2 border-r border-brand-dark-5 overflow-y-auto hidden lg:flex flex-col">
@@ -56,8 +58,43 @@ export default function LeftSidebar() {
         ))}
       </div>
 
+      {/* ── Top Leagues (collapsible, default collapsed) ────── */}
+      <div className="border-b border-brand-dark-5">
+        <button
+          onClick={() => setTopLeaguesOpen((p) => !p)}
+          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-brand-dark-3 transition-colors"
+        >
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+            Top Leagues
+          </span>
+          {topLeaguesOpen ? (
+            <ChevronUp size={13} className="text-gray-500" />
+          ) : (
+            <ChevronDown size={13} className="text-gray-500" />
+          )}
+        </button>
+
+        {topLeaguesOpen && (
+          <div className="pb-1">
+            {topLeagues.map((league) => (
+              <Link
+                key={league.name}
+                href={`/sport/soccer?league=${encodeURIComponent(league.name)}`}
+                className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-brand-dark-4 hover:text-white transition-colors"
+              >
+                <span className="text-base">{league.flag}</span>
+                <div>
+                  <div className="font-medium leading-tight text-xs">{league.name}</div>
+                  <div className="text-[10px] text-gray-500">{league.country}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ── My Picks Panel ──────────────────────────────────── */}
-      <div className="border-b border-brand-dark-5 flex flex-col">
+      <div className="flex-1 flex flex-col border-b border-brand-dark-5">
         <div className="flex items-center justify-between px-3 py-2.5">
           <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">My Picks</span>
           {items.length > 0 && (
@@ -110,26 +147,6 @@ export default function LeftSidebar() {
             </button>
           </div>
         )}
-      </div>
-
-      {/* ── Top Leagues ─────────────────────────────────────── */}
-      <div className="flex-1">
-        <div className="px-3 py-2.5">
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Top Leagues</span>
-        </div>
-        {topLeagues.map((league) => (
-          <Link
-            key={league.name}
-            href={`/sport/soccer?league=${encodeURIComponent(league.name)}`}
-            className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:bg-brand-dark-4 hover:text-white transition-colors"
-          >
-            <span className="text-base">{league.flag}</span>
-            <div>
-              <div className="font-medium leading-tight text-xs">{league.name}</div>
-              <div className="text-[10px] text-gray-500">{league.country}</div>
-            </div>
-          </Link>
-        ))}
       </div>
     </aside>
   );

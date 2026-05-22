@@ -3,7 +3,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 
-const tabs = ["Live", "Highlights", "Upcoming", "Season Picks"];
+const tabs = ["Live", "Highlights", "Upcoming", "Season Picks", "Community"];
 
 interface Props {
   activeTab: string;
