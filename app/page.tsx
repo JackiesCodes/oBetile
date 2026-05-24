@@ -6,6 +6,7 @@ import { sports, countryFlags } from "@/data/matches";
 import LeagueSection from "@/components/LeagueSection";
 import SportsTabBar from "@/components/SportsTabBar";
 import CommunityPanel from "@/components/CommunityPanel";
+import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture, CURRENT_SEASON } from "@/lib/api-football";
 import { Flame, Zap } from "lucide-react";
@@ -21,50 +22,103 @@ function dedupe(matches: Match[]): Match[] {
   });
 }
 
+function getDateParams(activeDate: string): Record<string, string> {
+  const d = new Date();
+  if (activeDate === "Tomorrow") {
+    d.setDate(d.getDate() + 1);
+    return { date: d.toISOString().split("T")[0] };
+  }
+  if (activeDate === "This Week") {
+    const from = d.toISOString().split("T")[0];
+    const to = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    return { from, to };
+  }
+  return { date: d.toISOString().split("T")[0] };
+}
+
+const STATUS_MAP: Record<string, Match["status"]> = {
+  Live: "live",
+  Upcoming: "upcoming",
+  Finished: "finished",
+};
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState("Highlights");
+  const [activeDate, setActiveDate] = useState("Today");
+  const [activeStatus, setActiveStatus] = useState("All");
   const [matches, setMatches] = useState<Match[]>([]);
   const [liveCount, setLiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Read ?tab= URL param on first load (used by sidebar deep links)
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab) setActiveTab(tab);
+  }, []);
+
+  // Reset status chip when tab changes
+  useEffect(() => {
+    setActiveStatus("All");
+  }, [activeTab]);
+
+  // Fetch fixtures when activeDate changes; auto-refresh every 30s for Today only
+  useEffect(() => {
+    let cancelled = false;
+
     async function load() {
+      if (cancelled) return;
+      setLoading(true);
       try {
-        const today = new Date().toISOString().split("T")[0];
+        const dateParams = getDateParams(activeDate);
 
         const [fixtureArrays, liveData] = await Promise.all([
           Promise.all(
-            TOP_LEAGUE_IDS.map((id) =>
-              fetch(
-                `/api/football/fixtures?date=${today}&league=${id}&season=${CURRENT_SEASON}`
-              )
+            TOP_LEAGUE_IDS.map((id) => {
+              const qp = new URLSearchParams({
+                league: String(id),
+                season: CURRENT_SEASON,
+                ...dateParams,
+              });
+              return fetch(`/api/football/fixtures?${qp}`)
                 .then((r) => r.json())
-                .catch(() => [])
-            )
+                .catch(() => []);
+            })
           ),
-          fetch("/api/football/live")
-            .then((r) => r.json())
-            .catch(() => []),
+          fetch("/api/football/live").then((r) => r.json()).catch(() => []),
         ]);
 
-        const all = (fixtureArrays as APIFixture[][])
-          .flat()
-          .map(normalizeFixture);
-        setMatches(dedupe(all));
-        setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
+        if (!cancelled) {
+          const all = (fixtureArrays as APIFixture[][]).flat().map(normalizeFixture);
+          setMatches(dedupe(all));
+          setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
+        }
       } catch {
-        // silently fail — show empty state
+        // silently fail
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
-    const t = setInterval(load, 30_000);
-    return () => clearInterval(t);
-  }, []);
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+    if (activeDate === "Today") {
+      interval = setInterval(load, 30_000);
+    }
+
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
+  }, [activeDate]);
 
   const filtered = matches.filter((m) => {
+    // Status chip overrides when explicitly set
+    if (activeStatus !== "All") {
+      return m.status === STATUS_MAP[activeStatus];
+    }
+    // Tab-based implicit filter
     if (activeTab === "Live") return m.status === "live";
     if (activeTab === "Upcoming") return m.status === "upcoming";
     return true;
@@ -120,13 +174,20 @@ export default function HomePage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         liveCount={liveCount}
+        activeDate={activeDate}
+        onDateChange={setActiveDate}
+        activeStatus={activeStatus}
+        onStatusChange={setActiveStatus}
       />
 
       {/* Community tab */}
       {activeTab === "Community" && <CommunityPanel />}
 
-      {/* Match feed */}
-      {activeTab !== "Community" && (
+      {/* Season Picks tab */}
+      {activeTab === "Season Picks" && <SeasonPicksPanel />}
+
+      {/* Match feed (all other tabs) */}
+      {activeTab !== "Community" && activeTab !== "Season Picks" && (
         <div className="flex-1 overflow-y-auto">
           {/* Skeleton loader */}
           {loading && (
@@ -136,12 +197,12 @@ export default function HomePage() {
           )}
 
           {/* Featured / Top Predictions */}
-          {!loading && activeTab === "Highlights" && featuredMatches.length > 0 && (
+          {!loading && activeTab === "Highlights" && activeStatus === "All" && featuredMatches.length > 0 && (
             <div className="px-3 pt-3 pb-1">
               <div className="flex items-center gap-2 mb-2">
                 <Flame size={14} className="text-orange-400" />
                 <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-                  Top Predictions
+                  Top Matches
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
@@ -167,7 +228,7 @@ export default function HomePage() {
           {!loading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
               <Zap size={32} />
-              <p className="text-sm">No matches available for today.</p>
+              <p className="text-sm">No matches for this selection.</p>
             </div>
           )}
         </div>
