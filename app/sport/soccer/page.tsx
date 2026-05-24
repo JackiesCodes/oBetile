@@ -5,7 +5,7 @@ import LeagueSection from "@/components/LeagueSection";
 import SportsTabBar from "@/components/SportsTabBar";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
-import { normalizeFixture, CURRENT_SEASON } from "@/lib/api-football";
+import { normalizeFixture } from "@/lib/api-football";
 import { Zap } from "lucide-react";
 
 const STATUS_MAP: Record<string, Match["status"]> = {
@@ -56,7 +56,7 @@ export default function SoccerPage() {
       setLoading(true);
       try {
         const dateParams = getDateParams(activeDate);
-        const qp = new URLSearchParams({ season: CURRENT_SEASON, ...dateParams });
+        const qp = new URLSearchParams({ ...dateParams }); // no season — let API resolve per competition
         const fixturesData = await fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []);
         if (!cancelled) {
           const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture);

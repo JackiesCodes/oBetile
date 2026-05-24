@@ -12,6 +12,7 @@ interface LineupTeam {
 
 interface Props {
   lineups: LineupTeam[];
+  fixtureStatus?: string;
 }
 
 const POS_COLOR: Record<string, string> = {
@@ -21,12 +22,22 @@ const POS_COLOR: Record<string, string> = {
   F: "bg-red-500/20 text-red-400",
 };
 
-export default function MatchLineups({ lineups }: Props) {
+const UPCOMING = new Set(["NS", "TBD", "PST"]);
+
+export default function MatchLineups({ lineups, fixtureStatus }: Props) {
   if (!lineups.length) {
+    const isUpcoming = !fixtureStatus || UPCOMING.has(fixtureStatus);
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-gray-500 text-sm gap-2">
+      <div className="flex flex-col items-center justify-center py-12 text-gray-500 text-sm gap-2 text-center px-6">
         <span className="text-3xl">📋</span>
-        <p>Lineups not yet available.</p>
+        <p className="font-medium text-gray-400">
+          {isUpcoming ? "Lineups not announced yet" : "Lineups not available"}
+        </p>
+        <p className="text-xs text-gray-600">
+          {isUpcoming
+            ? "Starting XI will be published closer to kick-off."
+            : "Lineup data is not available for this competition."}
+        </p>
       </div>
     );
   }

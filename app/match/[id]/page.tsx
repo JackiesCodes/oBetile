@@ -176,15 +176,16 @@ export default function MatchDetailPage() {
             events={events}
             homeTeamId={homeTeamId}
             awayTeamId={awayTeamId}
+            fixtureStatus={fixture.fixture.status.short}
           />
         )}
 
         {activeTab === "lineups" && (
-          <MatchLineups lineups={lineups} />
+          <MatchLineups lineups={lineups} fixtureStatus={fixture.fixture.status.short} />
         )}
 
         {activeTab === "statistics" && (
-          <MatchStats stats={stats} />
+          <MatchStats stats={stats} fixtureStatus={fixture.fixture.status.short} />
         )}
 
         {activeTab === "h2h" && (

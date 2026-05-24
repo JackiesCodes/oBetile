@@ -8,7 +8,7 @@ import SportsTabBar from "@/components/SportsTabBar";
 import CommunityPanel from "@/components/CommunityPanel";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
-import { normalizeFixture, CURRENT_SEASON } from "@/lib/api-football";
+import { normalizeFixture } from "@/lib/api-football";
 import { Flame, Zap } from "lucide-react";
 
 function dedupe(matches: Match[]): Match[] {
@@ -70,7 +70,9 @@ export default function HomePage() {
       try {
         const dateParams = getDateParams(activeDate);
 
-        const qp = new URLSearchParams({ season: CURRENT_SEASON, ...dateParams });
+        // No season param — API-Football resolves the correct season per competition automatically when querying by date.
+        // Passing season=2025 would break calendar-year leagues (MLS, Brazil, etc.) whose 2026 season ≠ 2025.
+        const qp = new URLSearchParams({ ...dateParams });
         const [fixturesData, liveData] = await Promise.all([
           fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []),
           fetch("/api/football/live").then((r) => r.json()).catch(() => []),

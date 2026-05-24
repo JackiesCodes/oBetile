@@ -13,6 +13,7 @@ interface Props {
   homeTeamId: number;
   awayTeamId: number;
   totalMinutes?: number;
+  fixtureStatus?: string; // API-Football short status: NS, 1H, HT, 2H, FT, etc.
 }
 
 const EVENT_ICON: Record<string, string> = {
@@ -27,12 +28,30 @@ const EVENT_ICON: Record<string, string> = {
   Var: "📺",
 };
 
-export default function MatchSummary({ events, homeTeamId, awayTeamId, totalMinutes = 90 }: Props) {
+const UPCOMING = new Set(["NS", "TBD", "PST"]);
+const LIVE = new Set(["1H", "HT", "2H", "ET", "P", "BT"]);
+
+export default function MatchSummary({ events, homeTeamId, awayTeamId, totalMinutes = 90, fixtureStatus }: Props) {
   if (!events.length) {
+    const isUpcoming = !fixtureStatus || UPCOMING.has(fixtureStatus);
+    const isLive = fixtureStatus ? LIVE.has(fixtureStatus) : false;
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-gray-500 text-sm gap-2">
-        <span className="text-3xl">⏱️</span>
-        <p>No events recorded yet.</p>
+      <div className="flex flex-col items-center justify-center py-12 text-gray-500 text-sm gap-2 text-center px-6">
+        <span className="text-3xl">{isUpcoming ? "🕐" : isLive ? "⏱️" : "📭"}</span>
+        <p className="font-medium text-gray-400">
+          {isUpcoming
+            ? "Match hasn't started yet"
+            : isLive
+            ? "No events recorded yet"
+            : "No event data for this competition"}
+        </p>
+        <p className="text-xs text-gray-600">
+          {isUpcoming
+            ? "Goals, cards and key events will appear here once the match kicks off."
+            : isLive
+            ? "Events will appear as the match progresses."
+            : "Detailed match events are not available for this league on the current plan."}
+        </p>
       </div>
     );
   }

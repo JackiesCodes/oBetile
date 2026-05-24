@@ -5,6 +5,7 @@ interface StatTeam {
 
 interface Props {
   stats: StatTeam[];
+  fixtureStatus?: string;
 }
 
 function parseVal(v: string | number | null): number {
@@ -29,12 +30,22 @@ const STAT_KEYS = [
   "Passes accurate",
 ];
 
-export default function MatchStats({ stats }: Props) {
+const UPCOMING = new Set(["NS", "TBD", "PST"]);
+
+export default function MatchStats({ stats, fixtureStatus }: Props) {
   if (!stats.length || stats.length < 2) {
+    const isUpcoming = !fixtureStatus || UPCOMING.has(fixtureStatus);
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-gray-500 text-sm gap-2">
+      <div className="flex flex-col items-center justify-center py-12 text-gray-500 text-sm gap-2 text-center px-6">
         <span className="text-3xl">📊</span>
-        <p>Statistics not yet available.</p>
+        <p className="font-medium text-gray-400">
+          {isUpcoming ? "Match hasn't started yet" : "Statistics not available"}
+        </p>
+        <p className="text-xs text-gray-600">
+          {isUpcoming
+            ? "Stats like possession, shots and passes will appear here once the match begins."
+            : "Match statistics are not available for this competition."}
+        </p>
       </div>
     );
   }
