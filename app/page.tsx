@@ -11,8 +11,6 @@ import { Match, APIFixture } from "@/types";
 import { normalizeFixture, CURRENT_SEASON } from "@/lib/api-football";
 import { Flame, Zap } from "lucide-react";
 
-const TOP_LEAGUE_IDS = [39, 140, 78, 135, 61]; // PL, LaLiga, Bundesliga, Serie A, Ligue 1
-
 function dedupe(matches: Match[]): Match[] {
   const seen = new Set<string>();
   return matches.filter((m) => {
@@ -72,24 +70,14 @@ export default function HomePage() {
       try {
         const dateParams = getDateParams(activeDate);
 
-        const [fixtureArrays, liveData] = await Promise.all([
-          Promise.all(
-            TOP_LEAGUE_IDS.map((id) => {
-              const qp = new URLSearchParams({
-                league: String(id),
-                season: CURRENT_SEASON,
-                ...dateParams,
-              });
-              return fetch(`/api/football/fixtures?${qp}`)
-                .then((r) => r.json())
-                .catch(() => []);
-            })
-          ),
+        const qp = new URLSearchParams({ season: CURRENT_SEASON, ...dateParams });
+        const [fixturesData, liveData] = await Promise.all([
+          fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []),
           fetch("/api/football/live").then((r) => r.json()).catch(() => []),
         ]);
 
         if (!cancelled) {
-          const all = (fixtureArrays as APIFixture[][]).flat().map(normalizeFixture);
+          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture);
           setMatches(dedupe(all));
           setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
         }

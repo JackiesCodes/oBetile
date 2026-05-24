@@ -8,8 +8,6 @@ import { Match, APIFixture } from "@/types";
 import { normalizeFixture, CURRENT_SEASON } from "@/lib/api-football";
 import { Zap } from "lucide-react";
 
-const TOP_LEAGUE_IDS = [39, 140, 78, 135, 61];
-
 const STATUS_MAP: Record<string, Match["status"]> = {
   Live: "live",
   Upcoming: "upcoming",
@@ -58,14 +56,10 @@ export default function SoccerPage() {
       setLoading(true);
       try {
         const dateParams = getDateParams(activeDate);
-        const fixtureArrays = await Promise.all(
-          TOP_LEAGUE_IDS.map((id) => {
-            const qp = new URLSearchParams({ league: String(id), season: CURRENT_SEASON, ...dateParams });
-            return fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []);
-          })
-        );
+        const qp = new URLSearchParams({ season: CURRENT_SEASON, ...dateParams });
+        const fixturesData = await fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []);
         if (!cancelled) {
-          const all = (fixtureArrays as APIFixture[][]).flat().map(normalizeFixture);
+          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture);
           setMatches(dedupe(all));
         }
       } catch {
