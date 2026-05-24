@@ -40,19 +40,8 @@ export default function LeagueSection({ league, country, matches }: Props) {
         )}
       </button>
 
-      {/* Column Headers */}
       {!collapsed && (
         <>
-          <div className="flex items-center px-3 py-1.5 bg-brand-dark-2 border-b border-brand-dark-5">
-            <div className="w-16 shrink-0" />
-            <div className="flex-1" />
-            <div className="flex gap-1.5 shrink-0">
-              <div className="text-[11px] text-gray-500 font-semibold w-28 text-right pr-1">
-                Predicted Winner
-              </div>
-              <div className="w-4" />
-            </div>
-          </div>
           {matches.map((match) => (
             <MatchRow key={match.id} match={match} />
           ))}

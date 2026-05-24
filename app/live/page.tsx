@@ -1,16 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { matches, sports } from "@/data/matches";
+import { useState, useEffect } from "react";
 import LeagueSection from "@/components/LeagueSection";
-import { Match } from "@/types";
+import { Match, APIFixture } from "@/types";
+import { normalizeFixture } from "@/lib/api-football";
 import { Zap, Activity } from "lucide-react";
 import clsx from "clsx";
 
 export default function LivePage() {
   const [activeSport, setActiveSport] = useState("all");
+  const [liveMatches, setLiveMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const liveMatches = matches.filter((m) => m.status === "live");
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await fetch("/api/football/live").then((r) => r.json()).catch(() => []);
+        const normalized = (Array.isArray(data) ? data as APIFixture[] : []).map(normalizeFixture);
+        setLiveMatches(normalized);
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const filtered =
     activeSport === "all"
@@ -26,7 +43,11 @@ export default function LivePage() {
     {}
   );
 
-  const liveSports = sports.filter((s) => (s.liveCount ?? 0) > 0);
+  // Build sport filter chips from actual live data
+  const sportCounts = liveMatches.reduce<Record<string, number>>((acc, m) => {
+    acc[m.sport] = (acc[m.sport] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="flex flex-col h-full">
@@ -37,7 +58,7 @@ export default function LivePage() {
           <Activity size={18} className="text-brand-green" />
         </div>
         <div>
-          <h1 className="text-white font-bold text-lg leading-tight">Live Predictions</h1>
+          <h1 className="text-white font-bold text-lg leading-tight">Live Matches</h1>
           <p className="text-gray-400 text-xs">{liveMatches.length} live events right now</p>
         </div>
       </div>
@@ -55,28 +76,25 @@ export default function LivePage() {
         >
           All ({liveMatches.length})
         </button>
-        {liveSports.map((sport) => (
+        {Object.entries(sportCounts).map(([sportId, count]) => (
           <button
-            key={sport.id}
-            onClick={() => setActiveSport(sport.id)}
+            key={sportId}
+            onClick={() => setActiveSport(sportId)}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors shrink-0",
-              activeSport === sport.id
+              activeSport === sportId
                 ? "bg-brand-green text-black"
                 : "bg-brand-dark-4 text-gray-400 hover:text-white"
             )}
           >
-            <span>{sport.icon}</span>
-            {sport.name}
+            {sportId === "soccer" ? "⚽" : sportId}
             <span
               className={clsx(
                 "text-[10px] font-bold px-1 rounded",
-                activeSport === sport.id
-                  ? "text-black/60"
-                  : "text-brand-green"
+                activeSport === sportId ? "text-black/60" : "text-brand-green"
               )}
             >
-              {sport.liveCount}
+              {count}
             </span>
           </button>
         ))}
@@ -84,7 +102,13 @@ export default function LivePage() {
 
       {/* Matches */}
       <div className="flex-1 overflow-y-auto">
-        {filtered.length > 0 ? (
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {!loading && filtered.length > 0 &&
           Object.entries(grouped).map(([league, { country, matches: leagueMatches }]) => (
             <LeagueSection
               key={league}
@@ -93,10 +117,12 @@ export default function LivePage() {
               matches={leagueMatches}
             />
           ))
-        ) : (
+        }
+
+        {!loading && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
             <Zap size={32} />
-            <p className="text-sm">No live events for this sport right now.</p>
+            <p className="text-sm">No live matches right now.</p>
           </div>
         )}
       </div>

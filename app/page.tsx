@@ -7,11 +7,10 @@ import LeagueSection from "@/components/LeagueSection";
 import SportsTabBar from "@/components/SportsTabBar";
 import CommunityPanel from "@/components/CommunityPanel";
 import { Match, APIFixture } from "@/types";
-import { normalizeFixture } from "@/lib/api-football";
+import { normalizeFixture, CURRENT_SEASON } from "@/lib/api-football";
 import { Flame, Zap } from "lucide-react";
 
 const TOP_LEAGUE_IDS = [39, 140, 78, 135, 61]; // PL, LaLiga, Bundesliga, Serie A, Ligue 1
-const SEASON = "2024";
 
 function dedupe(matches: Match[]): Match[] {
   const seen = new Set<string>();
@@ -37,7 +36,7 @@ export default function HomePage() {
           Promise.all(
             TOP_LEAGUE_IDS.map((id) =>
               fetch(
-                `/api/football/fixtures?date=${today}&league=${id}&season=${SEASON}`
+                `/api/football/fixtures?date=${today}&league=${id}&season=${CURRENT_SEASON}`
               )
                 .then((r) => r.json())
                 .catch(() => [])

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Match } from "@/types";
-import { getTopPick } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 import clsx from "clsx";
 
@@ -12,7 +11,6 @@ interface Props {
 
 export default function MatchRow({ match }: Props) {
   const isLive = match.status === "live";
-  const pick = getTopPick(match);
 
   return (
     <Link
@@ -60,15 +58,6 @@ export default function MatchRow({ match }: Props) {
           )}
         </div>
       </div>
-
-      {/* AI prediction chip */}
-      {pick && (
-        <div className="hidden sm:flex flex-col items-center shrink-0 mr-1">
-          <span className="text-[9px] text-gray-500 uppercase leading-none mb-0.5">Predicted</span>
-          <span className="text-[11px] font-bold text-brand-green leading-none">{pick.label}</span>
-          <span className="text-[9px] text-gray-400 leading-none mt-0.5">{pick.pct}%</span>
-        </div>
-      )}
 
       <ChevronRight size={15} className="text-gray-600 group-hover:text-brand-green transition-colors shrink-0" />
     </Link>

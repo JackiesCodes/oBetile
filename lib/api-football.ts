@@ -25,7 +25,7 @@ export async function apiFetch<T>(
 }
 
 // Current season helper — update each year
-export const CURRENT_SEASON = "2024";
+export const CURRENT_SEASON = "2025";
 
 // Top 5 European league IDs
 export const TOP_LEAGUES = {
