@@ -109,8 +109,18 @@ export default function RightPanel() {
 
             <div className="px-2 pb-3 space-y-0.5">
               {scorers.length === 0 && (
-                <div className="flex items-center justify-center py-4">
-                  <div className="w-4 h-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                <div className="space-y-1.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="animate-pulse flex items-center gap-2.5 px-2 py-1.5">
+                      <div className="w-4 h-4 bg-brand-dark-4 rounded shrink-0" />
+                      <div className="w-7 h-7 bg-brand-dark-4 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-1">
+                        <div className="h-3 bg-brand-dark-4 rounded w-3/4" />
+                        <div className="h-2.5 bg-brand-dark-4 rounded w-1/2" />
+                      </div>
+                      <div className="w-5 h-4 bg-brand-dark-4 rounded shrink-0" />
+                    </div>
+                  ))}
                 </div>
               )}
               {scorers.map((s, i) => (

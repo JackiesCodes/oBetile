@@ -15,7 +15,7 @@ export default function MatchRow({ match }: Props) {
   return (
     <Link
       href={`/match/${match.id}`}
-      className="flex items-center gap-2 px-3 py-2.5 hover:bg-brand-dark-3 transition-colors border-b border-brand-dark-5 group cursor-pointer"
+      className="flex items-center gap-2 px-3 py-3.5 hover:bg-brand-dark-3 transition-colors border-b border-brand-dark-5 group cursor-pointer"
     >
       {/* Time / Live indicator */}
       <div className="w-14 shrink-0 text-center">

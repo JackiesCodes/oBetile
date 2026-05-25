@@ -135,7 +135,8 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-full">
       {/* Sports icon strip */}
-      <div className="flex overflow-x-auto gap-2 px-3 py-3 border-b border-brand-dark-5 bg-brand-dark-2 scrollbar-hide">
+      <div className="relative border-b border-brand-dark-5 bg-brand-dark-2">
+      <div className="flex overflow-x-auto gap-2 px-3 py-3 scrollbar-hide">
         {sportsWithLive.slice(0, 10).map((sport) => (
           <Link
             key={sport.id}
@@ -157,6 +158,8 @@ export default function HomePage() {
             </span>
           </Link>
         ))}
+      </div>
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-brand-dark-2 to-transparent" />
       </div>
 
       {/* Tab bar */}
@@ -219,6 +222,7 @@ export default function HomePage() {
             <div className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
               <Zap size={32} />
               <p className="text-sm">No matches for this selection.</p>
+              <p className="text-xs text-gray-600">Try a different date or remove the status filter.</p>
             </div>
           )}
         </div>
@@ -240,7 +244,7 @@ function FeaturedCard({
       className="block bg-brand-dark-3 border border-brand-dark-5 rounded-xl p-3 hover:border-brand-green/40 transition-colors"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] text-gray-500 font-medium">
+        <span className="text-[10px] text-gray-400 font-medium">
           {countryFlags[match.country] ?? "🌍"} {match.league}
         </span>
         {match.status === "live" ? (

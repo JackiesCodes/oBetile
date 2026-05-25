@@ -88,7 +88,7 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Search panel */}
-      <div className="relative w-full max-w-2xl mx-auto mt-16 sm:mt-24 px-4">
+      <div className="relative w-full max-w-2xl mx-auto mt-8 sm:mt-20 px-4">
         {/* Input */}
         <div className="flex items-center gap-3 bg-brand-dark-2 rounded-2xl px-4 py-3 border border-brand-dark-5 focus-within:border-brand-green transition-colors shadow-2xl">
           <Search size={18} className="text-gray-400 shrink-0" />
@@ -109,7 +109,7 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
         </div>
 
         {/* Results dropdown */}
-        <div className="bg-brand-dark-2 rounded-2xl border border-brand-dark-5 mt-2 overflow-hidden shadow-2xl max-h-[60vh] overflow-y-auto">
+        <div className="bg-brand-dark-2 rounded-2xl border border-brand-dark-5 mt-2 overflow-hidden shadow-2xl max-h-[65vh] sm:max-h-[60vh] overflow-y-auto">
           {!query && recent.length > 0 && (
             <div className="p-3">
               <p className="text-[10px] text-gray-500 uppercase font-semibold px-2 mb-2">Recent</p>

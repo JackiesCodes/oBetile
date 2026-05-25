@@ -138,6 +138,7 @@ export default function SoccerPage() {
             <div className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
               <Zap size={32} />
               <p className="text-sm">No fixtures for this selection.</p>
+              <p className="text-xs text-gray-600">Try Tomorrow or This Week to see upcoming fixtures.</p>
             </div>
           )}
 

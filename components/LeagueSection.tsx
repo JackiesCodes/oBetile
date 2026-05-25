@@ -22,7 +22,7 @@ export default function LeagueSection({ league, country, matches }: Props) {
       {/* League Header */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-brand-dark-3 hover:bg-brand-dark-4 transition-colors text-left"
+        className="w-full flex items-center gap-2 px-3 py-3 bg-brand-dark-3 hover:bg-brand-dark-4 transition-colors text-left"
       >
         <span className="text-base">{flag}</span>
         <div className="flex-1 min-w-0">

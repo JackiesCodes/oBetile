@@ -39,17 +39,17 @@ export default function MatchHeader({ fixture, league, teams, goals, score }: Ma
       </div>
 
       {/* Score block */}
-      <div className="px-4 py-5">
+      <div className="px-4 py-4 sm:py-5">
         <div className="flex items-center justify-between gap-4">
           {/* Home team */}
           <div className="flex flex-col items-center gap-2 flex-1">
             {teams.home.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={teams.home.logo} alt={teams.home.name} className="w-14 h-14 object-contain" />
+              <img src={teams.home.logo} alt={teams.home.name} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" />
             ) : (
-              <div className="w-14 h-14 bg-brand-dark-4 rounded-full" />
+              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-brand-dark-4 rounded-full" />
             )}
-            <span className="text-sm font-bold text-white text-center leading-tight max-w-[120px]">
+            <span className="text-xs sm:text-sm font-bold text-white text-center leading-tight max-w-[80px] sm:max-w-[120px]">
               {teams.home.name}
             </span>
           </div>
@@ -58,10 +58,10 @@ export default function MatchHeader({ fixture, league, teams, goals, score }: Ma
           <div className="flex flex-col items-center gap-1 shrink-0">
             {isLive || isFinished ? (
               <>
-                <div className="flex items-center gap-3">
-                  <span className="text-4xl font-bold text-white">{goals.home ?? 0}</span>
-                  <span className="text-2xl text-gray-500">–</span>
-                  <span className="text-4xl font-bold text-white">{goals.away ?? 0}</span>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <span className="text-3xl sm:text-4xl font-bold text-white">{goals.home ?? 0}</span>
+                  <span className="text-xl sm:text-2xl text-gray-500">–</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-white">{goals.away ?? 0}</span>
                 </div>
                 {isLive ? (
                   <div className="flex items-center gap-1.5">
@@ -102,11 +102,11 @@ export default function MatchHeader({ fixture, league, teams, goals, score }: Ma
           <div className="flex flex-col items-center gap-2 flex-1">
             {teams.away.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={teams.away.logo} alt={teams.away.name} className="w-14 h-14 object-contain" />
+              <img src={teams.away.logo} alt={teams.away.name} className="w-10 h-10 sm:w-14 sm:h-14 object-contain" />
             ) : (
-              <div className="w-14 h-14 bg-brand-dark-4 rounded-full" />
+              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-brand-dark-4 rounded-full" />
             )}
-            <span className="text-sm font-bold text-white text-center leading-tight max-w-[120px]">
+            <span className="text-xs sm:text-sm font-bold text-white text-center leading-tight max-w-[80px] sm:max-w-[120px]">
               {teams.away.name}
             </span>
           </div>

@@ -109,7 +109,7 @@ export default function Header({ onSearchOpen }: Props) {
 
         <button
           onClick={onSearchOpen}
-          className="sm:hidden text-gray-400 hover:text-white transition-colors"
+          className="sm:hidden text-gray-400 hover:text-white transition-colors p-2 rounded-lg"
         >
           <Search size={18} />
         </button>
@@ -119,7 +119,8 @@ export default function Header({ onSearchOpen }: Props) {
 
       {/* Mobile menu toggle */}
       <button
-        className="md:hidden text-gray-400 hover:text-white ml-1"
+        className="md:hidden text-gray-400 hover:text-white p-2 rounded-lg"
+        aria-label="Toggle navigation menu"
         onClick={() => setMenuOpen(!menuOpen)}
       >
         {menuOpen ? <X size={20} /> : <Menu size={20} />}
