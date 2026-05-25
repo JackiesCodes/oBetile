@@ -20,6 +20,9 @@ export default function MatchH2H({ fixtures, homeTeamId, awayTeamId }: Props) {
       <div className="flex flex-col items-center justify-center py-12 text-gray-500 text-sm gap-2">
         <span className="text-3xl">🤝</span>
         <p>No head-to-head history found.</p>
+        <p className="text-xs text-gray-600 text-center max-w-[200px]">
+          H2H records are available for major competitions. Smaller leagues may not have data.
+        </p>
       </div>
     );
   }

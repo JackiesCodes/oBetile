@@ -5,17 +5,21 @@ import { Match } from "@/types";
 import MatchRow from "./MatchRow";
 import { ChevronDown, ChevronUp, Star } from "lucide-react";
 import { countryFlags } from "@/data/matches";
+import { useFavourites } from "@/context/FavouritesContext";
 
 interface Props {
   league: string;
   country: string;
+  leagueId?: number;
   matches: Match[];
 }
 
-export default function LeagueSection({ league, country, matches }: Props) {
+export default function LeagueSection({ league, country, leagueId, matches }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const flag = countryFlags[country] || "🌍";
   const liveCount = matches.filter((m) => m.status === "live").length;
+  const { isFavourite, toggleFavourite } = useFavourites();
+  const starred = leagueId ? isFavourite("league", leagueId) : false;
 
   return (
     <div className="mb-0.5">
@@ -32,7 +36,14 @@ export default function LeagueSection({ league, country, matches }: Props) {
         <span className="text-[10px] text-gray-500 font-medium">
           {matches.length} match{matches.length !== 1 ? "es" : ""}{liveCount > 0 ? ` · ${liveCount} live` : " · upcoming"}
         </span>
-        <Star size={13} className="text-gray-600 hover:text-yellow-400 transition-colors shrink-0 mr-1" />
+        <Star
+          size={13}
+          className={starred ? "text-yellow-400 shrink-0 mr-1" : "text-gray-600 hover:text-yellow-400 transition-colors shrink-0 mr-1"}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (leagueId) toggleFavourite("league", leagueId, league);
+          }}
+        />
         {collapsed ? (
           <ChevronDown size={14} className="text-gray-500 shrink-0" />
         ) : (

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Menu, X, Bell, LogOut } from "lucide-react";
 import { usePredictions } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
+import NotificationsPanel from "@/components/NotificationsPanel";
 
 interface Props {
   onSearchOpen: () => void;
@@ -13,8 +14,23 @@ interface Props {
 export default function Header({ onSearchOpen }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [liveCount, setLiveCount] = useState(0);
   const { items } = usePredictions();
   const { user, signOut, openAuthModal } = useAuth();
+
+  // Poll live count for badge
+  useEffect(() => {
+    async function fetchCount() {
+      try {
+        const data = await fetch("/api/football/live").then((r) => r.json());
+        setLiveCount(Array.isArray(data) ? data.length : 0);
+      } catch { /* ignore */ }
+    }
+    fetchCount();
+    const interval = setInterval(fetchCount, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "";
 
@@ -114,7 +130,21 @@ export default function Header({ onSearchOpen }: Props) {
           <Search size={18} />
         </button>
 
-        <Bell size={18} className="text-gray-600 hidden sm:block" />
+        {/* Bell / Notifications */}
+        <div className="relative hidden sm:block">
+          <button
+            onClick={() => setNotifOpen((p) => !p)}
+            className="relative text-gray-400 hover:text-white transition-colors p-2 rounded-lg"
+          >
+            <Bell size={18} />
+            {liveCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[8px] font-bold min-w-[14px] h-3.5 rounded-full flex items-center justify-center px-0.5 leading-none">
+                {liveCount}
+              </span>
+            )}
+          </button>
+          {notifOpen && <NotificationsPanel onClose={() => setNotifOpen(false)} />}
+        </div>
       </div>
 
       {/* Mobile menu toggle */}

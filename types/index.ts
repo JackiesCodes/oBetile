@@ -2,6 +2,7 @@ export interface Match {
   id: string;
   sport: string;
   league: string;
+  leagueId?: number;
   country: string;
   home: string;
   away: string;

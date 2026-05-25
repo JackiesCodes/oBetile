@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Trophy, Zap, Calendar, X, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Trophy, Zap, Calendar, X, Trash2, ChevronDown, ChevronUp, Star } from "lucide-react";
 import clsx from "clsx";
 import { usePredictions } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
+import { useFavourites } from "@/context/FavouritesContext";
 
 const topLeagues = [
   { name: "Premier League", country: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
@@ -22,7 +23,10 @@ export default function LeftSidebar() {
   const pathname = usePathname();
   const { items, removeBet, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
+  const { favourites } = useFavourites();
   const [topLeaguesOpen, setTopLeaguesOpen] = useState(false);
+  const [myLeaguesOpen, setMyLeaguesOpen] = useState(true);
+  const starredLeagues = favourites.filter((f) => f.type === "league");
 
   return (
     <aside className="w-56 shrink-0 bg-brand-dark-2 border-r border-brand-dark-5 overflow-y-auto hidden lg:flex flex-col">
@@ -55,6 +59,45 @@ export default function LeftSidebar() {
             )}
           </Link>
         ))}
+      </div>
+
+      {/* ── My Leagues (starred) ────────────────────────────── */}
+      <div className="border-b border-brand-dark-5">
+        <button
+          onClick={() => setMyLeaguesOpen((p) => !p)}
+          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-brand-dark-3 transition-colors"
+        >
+          <span className="flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider">
+            <Star size={11} className="text-yellow-400" />
+            My Leagues
+          </span>
+          {myLeaguesOpen ? (
+            <ChevronUp size={13} className="text-gray-500" />
+          ) : (
+            <ChevronDown size={13} className="text-gray-500" />
+          )}
+        </button>
+
+        {myLeaguesOpen && (
+          <div className="pb-1">
+            {starredLeagues.length === 0 ? (
+              <p className="px-3 pb-2 text-[11px] text-gray-600">
+                Star a league to save it here
+              </p>
+            ) : (
+              starredLeagues.map((fav) => (
+                <Link
+                  key={fav.external_id}
+                  href={`/?tab=Highlights`}
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-300 hover:bg-brand-dark-4 hover:text-white transition-colors"
+                >
+                  <Star size={10} className="text-yellow-400 shrink-0" />
+                  <span className="truncate">{fav.name}</span>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Top Leagues (collapsible, default collapsed) ────── */}

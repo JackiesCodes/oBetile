@@ -34,9 +34,9 @@ export default function LivePage() {
       ? liveMatches
       : liveMatches.filter((m) => m.sport === activeSport);
 
-  const grouped = filtered.reduce<Record<string, { country: string; matches: Match[] }>>(
+  const grouped = filtered.reduce<Record<string, { country: string; leagueId?: number; matches: Match[] }>>(
     (acc, m) => {
-      if (!acc[m.league]) acc[m.league] = { country: m.country, matches: [] };
+      if (!acc[m.league]) acc[m.league] = { country: m.country, leagueId: m.leagueId, matches: [] };
       acc[m.league].matches.push(m);
       return acc;
     },
@@ -109,11 +109,12 @@ export default function LivePage() {
         )}
 
         {!loading && filtered.length > 0 &&
-          Object.entries(grouped).map(([league, { country, matches: leagueMatches }]) => (
+          Object.entries(grouped).map(([league, { country, leagueId, matches: leagueMatches }]) => (
             <LeagueSection
               key={league}
               league={league}
               country={country}
+              leagueId={leagueId}
               matches={leagueMatches}
             />
           ))

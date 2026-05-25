@@ -10,6 +10,7 @@ import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
 import { Flame, Zap } from "lucide-react";
+import { useFavourites } from "@/context/FavouritesContext";
 
 function dedupe(matches: Match[]): Match[] {
   const seen = new Set<string>();
@@ -114,9 +115,11 @@ export default function HomePage() {
     return true;
   });
 
-  const grouped = filtered.reduce<Record<string, { country: string; matches: Match[] }>>(
+  const { isFavourite } = useFavourites();
+
+  const grouped = filtered.reduce<Record<string, { country: string; leagueId?: number; matches: Match[] }>>(
     (acc, m) => {
-      if (!acc[m.league]) acc[m.league] = { country: m.country, matches: [] };
+      if (!acc[m.league]) acc[m.league] = { country: m.country, leagueId: m.leagueId, matches: [] };
       acc[m.league].matches.push(m);
       return acc;
     },
@@ -208,14 +211,21 @@ export default function HomePage() {
 
           {/* League groups */}
           {!loading &&
-            Object.entries(grouped).map(([league, { country, matches: leagueMatches }]) => (
-              <LeagueSection
-                key={league}
-                league={league}
-                country={country}
-                matches={leagueMatches}
-              />
-            ))}
+            Object.entries(grouped)
+              .sort(([, a], [, b]) => {
+                const aFav = a.leagueId ? (isFavourite("league", a.leagueId) ? 1 : 0) : 0;
+                const bFav = b.leagueId ? (isFavourite("league", b.leagueId) ? 1 : 0) : 0;
+                return bFav - aFav;
+              })
+              .map(([league, { country, leagueId, matches: leagueMatches }]) => (
+                <LeagueSection
+                  key={league}
+                  league={league}
+                  country={country}
+                  leagueId={leagueId}
+                  matches={leagueMatches}
+                />
+              ))}
 
           {/* Empty state */}
           {!loading && filtered.length === 0 && (
