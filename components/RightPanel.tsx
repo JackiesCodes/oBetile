@@ -5,6 +5,8 @@ import { TOP_LEAGUES } from "@/lib/api-football";
 import { ChevronDown, ChevronUp, TrendingUp, Award } from "lucide-react";
 import clsx from "clsx";
 import NewsFeedPanel from "@/components/NewsFeedPanel";
+import { useMatchDetail } from "@/context/MatchDetailContext";
+import MatchRightPanel from "@/components/match-detail/MatchRightPanel";
 
 interface Standing {
   rank: number;
@@ -27,6 +29,17 @@ const LEAGUE_LABELS: Record<number, string> = {
 };
 
 export default function RightPanel() {
+  const { matchDetail } = useMatchDetail();
+
+  // On match pages, show match-specific right panel instead
+  if (matchDetail?.fixture) {
+    return <MatchRightPanel />;
+  }
+
+  return <RightPanelDefault />;
+}
+
+function RightPanelDefault() {
   const [standings, setStandings] = useState<Record<number, Standing[]>>({});
   const [scorers, setScorers] = useState<TopScorer[]>([]);
   const [activeScorersLeague, setActiveScorersLeague] = useState(TOP_LEAGUES.premierLeague);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Match } from "@/types";
 import MatchRow from "./MatchRow";
 import { ChevronDown, ChevronUp, Star } from "lucide-react";
@@ -14,12 +14,36 @@ interface Props {
   matches: Match[];
 }
 
+type FixtureVotes = Record<string, { home: number; draw: number; away: number }>;
+
 export default function LeagueSection({ league, country, leagueId, matches }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  const [votes, setVotes] = useState<FixtureVotes>({});
+  const [votesFetched, setVotesFetched] = useState(false);
   const flag = countryFlags[country] || "🌍";
   const liveCount = matches.filter((m) => m.status === "live").length;
   const { isFavourite, toggleFavourite } = useFavourites();
   const starred = leagueId ? isFavourite("league", leagueId) : false;
+
+  // Fetch votes when section is expanded (once per mount)
+  useEffect(() => {
+    if (collapsed || votesFetched || matches.length === 0) return;
+    setVotesFetched(true);
+
+    const ids = matches.map((m) => m.id).join(",");
+    fetch(`/api/community/votes/batch?fixtures=${ids}`)
+      .then((r) => r.json())
+      .then((data: Record<string, { "1x2"?: { home: number; draw: number; away: number } }>) => {
+        const mapped: FixtureVotes = {};
+        for (const [fixtureId, markets] of Object.entries(data)) {
+          if (markets["1x2"]) {
+            mapped[fixtureId] = markets["1x2"];
+          }
+        }
+        setVotes(mapped);
+      })
+      .catch(() => { /* silent fail — chips just stay empty */ });
+  }, [collapsed, votesFetched, matches]);
 
   return (
     <div className="mb-0.5">
@@ -54,7 +78,11 @@ export default function LeagueSection({ league, country, leagueId, matches }: Pr
       {!collapsed && (
         <>
           {matches.map((match) => (
-            <MatchRow key={match.id} match={match} />
+            <MatchRow
+              key={match.id}
+              match={match}
+              votes={votes[String(match.id)]}
+            />
           ))}
         </>
       )}

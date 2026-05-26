@@ -8,6 +8,8 @@ import clsx from "clsx";
 import { usePredictions } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
 import { useFavourites } from "@/context/FavouritesContext";
+import { useMatchDetail } from "@/context/MatchDetailContext";
+import MatchLeftPanel from "@/components/match-detail/MatchLeftPanel";
 
 const topLeagues = [
   { name: "Premier League", country: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
@@ -24,6 +26,12 @@ export default function LeftSidebar() {
   const { items, removeBet, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
   const { favourites } = useFavourites();
+  const { matchDetail } = useMatchDetail();
+
+  // On match pages, show match-specific sidebar instead
+  if (matchDetail?.fixture) {
+    return <MatchLeftPanel />;
+  }
   const [topLeaguesOpen, setTopLeaguesOpen] = useState(false);
   const [myLeaguesOpen, setMyLeaguesOpen] = useState(true);
   const starredLeagues = favourites.filter((f) => f.type === "league");

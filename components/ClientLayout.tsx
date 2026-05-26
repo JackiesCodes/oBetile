@@ -4,6 +4,8 @@ import { useState } from "react";
 import { PredictionProvider } from "@/context/BetSlipContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { FavouritesProvider } from "@/context/FavouritesContext";
+import { MatchDetailProvider } from "@/context/MatchDetailContext";
+import { SubscriptionProvider } from "@/context/SubscriptionContext";
 import Header from "@/components/Header";
 import LeftSidebar from "@/components/LeftSidebar";
 import RightPanel from "@/components/RightPanel";
@@ -15,6 +17,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <AuthProvider>
+      <SubscriptionProvider>
+      <MatchDetailProvider>
       <FavouritesProvider>
       <PredictionProvider>
         <Header onSearchOpen={() => setSearchOpen(true)} />
@@ -29,6 +33,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </div>
       </PredictionProvider>
       </FavouritesProvider>
+      </MatchDetailProvider>
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }

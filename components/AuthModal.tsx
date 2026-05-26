@@ -45,7 +45,7 @@ export default function AuthModal() {
       <div className="relative bg-brand-dark-2 rounded-2xl w-full max-w-md border border-brand-dark-5 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-brand-dark-5">
-          <div className="flex gap-1 font-rajdhani text-xl font-semibold">
+          <div className="flex font-rajdhani text-xl font-semibold">
             <span className="text-white">o</span>
             <span className="text-brand-green">Bet</span>
             <span className="text-white">ile</span>
