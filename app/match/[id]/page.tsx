@@ -64,7 +64,7 @@ export default function MatchDetailPage() {
         const evs = Array.isArray(eventsRes) ? eventsRes : [];
         const lus = Array.isArray(lineupsRes) ? lineupsRes : [];
         const sts = Array.isArray(statsRes) ? statsRes : [];
-        const pred = Array.isArray(predRes) ? predRes[0] ?? null : null;
+        const pred = Array.isArray(predRes) ? (predRes[0]?.predictions ?? null) : null;
 
         setFixture(fix);
         setEvents(evs);

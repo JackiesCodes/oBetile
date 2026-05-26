@@ -22,16 +22,20 @@ const topLeagues = [
 ];
 
 export default function LeftSidebar() {
+  const { matchDetail } = useMatchDetail();
+
+  if (matchDetail?.fixture) {
+    return <MatchLeftPanel />;
+  }
+
+  return <LeftSidebarDefault />;
+}
+
+function LeftSidebarDefault() {
   const pathname = usePathname();
   const { items, removeBet, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
   const { favourites } = useFavourites();
-  const { matchDetail } = useMatchDetail();
-
-  // On match pages, show match-specific sidebar instead
-  if (matchDetail?.fixture) {
-    return <MatchLeftPanel />;
-  }
   const [topLeaguesOpen, setTopLeaguesOpen] = useState(false);
   const [myLeaguesOpen, setMyLeaguesOpen] = useState(true);
   const starredLeagues = favourites.filter((f) => f.type === "league");
