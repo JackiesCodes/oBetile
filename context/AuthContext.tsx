@@ -10,6 +10,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: string | null }>;
   authModalOpen: boolean;
   authModalTab: "login" | "signup";
   openAuthModal: (tab?: "login" | "signup") => void;
@@ -57,6 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
 
+  const resetPasswordForEmail = async (email: string) => {
+    if (!hasSupabaseConfig()) return { error: "Auth not configured" };
+    const supabase = createClient();
+    const redirectTo = `${typeof window !== "undefined" ? window.location.origin : "https://o-betile.vercel.app"}/auth/callback?type=recovery`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    return { error: error?.message ?? null };
+  };
+
   const signOut = async () => {
     if (!hasSupabaseConfig()) return;
     const supabase = createClient();
@@ -72,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, signIn, signUp, signOut, authModalOpen, authModalTab, openAuthModal, closeAuthModal }}
+      value={{ user, loading, signIn, signUp, signOut, resetPasswordForEmail, authModalOpen, authModalTab, openAuthModal, closeAuthModal }}
     >
       {children}
     </AuthContext.Provider>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Search, Menu, X, Bell, LogOut } from "lucide-react";
+import { Search, Menu, X, Bell, LogOut, User } from "lucide-react";
 import { usePredictions } from "@/context/BetSlipContext";
 import { useAuth } from "@/context/AuthContext";
 import NotificationsPanel from "@/components/NotificationsPanel";
@@ -96,6 +96,14 @@ export default function Header({ onSearchOpen }: Props) {
 
             {userMenuOpen && (
               <div className="absolute right-0 top-10 bg-brand-dark-3 border border-brand-dark-5 rounded-xl shadow-2xl py-1 min-w-[160px] z-50">
+                <Link
+                  href="/profile"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-300 hover:bg-brand-dark-4 hover:text-white transition-colors"
+                >
+                  <User size={14} />
+                  My Profile
+                </Link>
                 <button
                   onClick={() => { signOut(); setUserMenuOpen(false); }}
                   className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-300 hover:bg-brand-dark-4 hover:text-red-400 transition-colors"

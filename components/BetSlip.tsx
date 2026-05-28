@@ -2,9 +2,22 @@
 
 import { usePredictions } from "@/context/BetSlipContext";
 import { X, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import clsx from "clsx";
 import { useAuth } from "@/context/AuthContext";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
+
+interface HistoryPick {
+  id: string;
+  fixture_id: number;
+  home_team: string;
+  away_team: string;
+  pick: "home" | "draw" | "away";
+  created_at: string;
+}
+
+const PICK_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away" };
+const PICK_COLOR: Record<string, string> = { home: "text-brand-green", draw: "text-gray-400", away: "text-red-400" };
 
 type Tab = "picks" | "history";
 
@@ -13,6 +26,25 @@ export default function BetSlip() {
   const { user, openAuthModal } = useAuth();
   const [tab, setTab] = useState<Tab>("picks");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [history, setHistory] = useState<HistoryPick[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user || !hasSupabaseConfig()) { setHistory([]); return; }
+    if (tab !== "history") return;
+    setHistoryLoading(true);
+    const supabase = createClient();
+    supabase
+      .from("user_picks")
+      .select("id, fixture_id, home_team, away_team, pick, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        setHistory((data as HistoryPick[]) ?? []);
+        setHistoryLoading(false);
+      });
+  }, [user, tab]);
 
   const tabBar = (
     <div className="flex border-b border-brand-dark-5 shrink-0">
@@ -109,14 +141,12 @@ export default function BetSlip() {
   );
 
   const historyBody = (
-    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6 py-12">
-      <div className="w-16 h-16 rounded-full bg-brand-dark-4 flex items-center justify-center">
-        <span className="text-3xl">📋</span>
-      </div>
-      {user ? (
-        <p className="text-gray-400 text-sm">No pick history yet. Start picking matches!</p>
-      ) : (
-        <>
+    <div className="flex-1 overflow-y-auto">
+      {!user ? (
+        <div className="flex flex-col items-center justify-center gap-3 text-center px-6 py-12">
+          <div className="w-16 h-16 rounded-full bg-brand-dark-4 flex items-center justify-center">
+            <span className="text-3xl">📋</span>
+          </div>
           <p className="text-gray-400 text-sm">Log in to view your pick history.</p>
           <button
             onClick={() => openAuthModal("login")}
@@ -124,7 +154,32 @@ export default function BetSlip() {
           >
             Log In
           </button>
-        </>
+        </div>
+      ) : historyLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : history.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 text-center px-6 py-12">
+          <div className="w-16 h-16 rounded-full bg-brand-dark-4 flex items-center justify-center">
+            <span className="text-3xl">📋</span>
+          </div>
+          <p className="text-gray-400 text-sm">No pick history yet. Start picking matches!</p>
+        </div>
+      ) : (
+        <div className="p-2 space-y-1.5">
+          {history.map((pick) => (
+            <div key={pick.id} className="bg-brand-dark-3 rounded-lg px-3 py-2.5 border border-brand-dark-5 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-gray-400 truncate">{pick.home_team} vs {pick.away_team}</p>
+                <p className={`text-xs font-semibold mt-0.5 ${PICK_COLOR[pick.pick]}`}>{PICK_LABEL[pick.pick]} Win</p>
+              </div>
+              <p className="text-[10px] text-gray-600 shrink-0">
+                {new Date(pick.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              </p>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
