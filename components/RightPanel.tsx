@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TOP_LEAGUES } from "@/lib/api-football";
+import { MAJOR_LEAGUES } from "@/lib/api-football";
 import { ChevronDown, ChevronUp, TrendingUp, Award } from "lucide-react";
 import clsx from "clsx";
 import NewsFeedPanel from "@/components/NewsFeedPanel";
 import { useMatchDetail } from "@/context/MatchDetailContext";
 import MatchRightPanel from "@/components/match-detail/MatchRightPanel";
+import type { ActiveLeague } from "@/app/api/football/leagues/active/route";
 
 interface Standing {
   rank: number;
@@ -22,12 +23,6 @@ interface TopScorer {
   statistics: Array<{ goals: { total: number }; team: { name: string; logo: string } }>;
 }
 
-const LEAGUE_LABELS: Record<number, string> = {
-  [TOP_LEAGUES.premierLeague]: "Premier League",
-  [TOP_LEAGUES.laLiga]: "LaLiga",
-  [TOP_LEAGUES.bundesliga]: "Bundesliga",
-};
-
 export default function RightPanel() {
   const { matchDetail } = useMatchDetail();
 
@@ -40,17 +35,32 @@ export default function RightPanel() {
 }
 
 function RightPanelDefault() {
+  const [activeLeagues, setActiveLeagues] = useState<ActiveLeague[]>([]);
   const [standings, setStandings] = useState<Record<number, Standing[]>>({});
   const [scorers, setScorers] = useState<TopScorer[]>([]);
-  const [activeScorersLeague, setActiveScorersLeague] = useState(TOP_LEAGUES.premierLeague);
+  const [activeScorersLeague, setActiveScorersLeague] = useState<number | null>(null);
 
   // Collapse state for each section
   const [newsFeedOpen, setNewsFeedOpen] = useState(true);
   const [scorersOpen, setScorersOpen] = useState(true);
   const [standingsCollapsed, setStandingsCollapsed] = useState<Record<number, boolean>>({});
 
+  // Discover which leagues currently have a season in progress — only those
+  // render below, so a competition on its off-season break never shows up.
   useEffect(() => {
-    [TOP_LEAGUES.premierLeague, TOP_LEAGUES.laLiga, TOP_LEAGUES.bundesliga].forEach(async (id) => {
+    const ids = MAJOR_LEAGUES.map((l) => l.id).join(",");
+    fetch(`/api/football/leagues/active?ids=${ids}`)
+      .then((r) => r.json())
+      .then((data: ActiveLeague[]) => {
+        if (!Array.isArray(data)) return;
+        setActiveLeagues(data);
+        setActiveScorersLeague((prev) => prev ?? data[0]?.id ?? null);
+      })
+      .catch(() => { /* ignore */ });
+  }, []);
+
+  useEffect(() => {
+    activeLeagues.forEach(async ({ id }) => {
       try {
         const res = await fetch(`/api/football/standings/${id}`);
         const data = await res.json();
@@ -59,9 +69,10 @@ function RightPanelDefault() {
         }
       } catch { /* ignore */ }
     });
-  }, []);
+  }, [activeLeagues]);
 
   useEffect(() => {
+    if (activeScorersLeague === null) return;
     setScorers([]);
     fetch(`/api/football/topscorers/${activeScorersLeague}`)
       .then((r) => r.json())
@@ -81,6 +92,7 @@ function RightPanelDefault() {
       <NewsFeedPanel
         collapsed={!newsFeedOpen}
         onToggleCollapse={() => setNewsFeedOpen((p) => !p)}
+        activeLeagues={activeLeagues}
       />
 
       {/* ── Top Scorers ──────────────────────────────────────── */}
@@ -102,26 +114,31 @@ function RightPanelDefault() {
 
         {scorersOpen && (
           <>
-            {/* League switcher */}
+            {/* League switcher — only leagues with a season currently in progress */}
             <div className="flex gap-1 px-3 pb-2 overflow-x-auto scrollbar-hide">
-              {Object.entries(LEAGUE_LABELS).map(([id, label]) => (
+              {activeLeagues.map((l) => (
                 <button
-                  key={id}
-                  onClick={() => setActiveScorersLeague(Number(id))}
+                  key={l.id}
+                  onClick={() => setActiveScorersLeague(l.id)}
                   className={clsx(
                     "px-2.5 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0",
-                    activeScorersLeague === Number(id)
+                    activeScorersLeague === l.id
                       ? "bg-brand-green text-black"
                       : "bg-brand-dark-4 text-gray-400 hover:text-white"
                   )}
                 >
-                  {label}
+                  {l.name}
                 </button>
               ))}
             </div>
 
             <div className="px-2 pb-3 space-y-0.5">
-              {scorers.length === 0 && (
+              {activeLeagues.length === 0 && (
+                <p className="text-center text-gray-500 text-[11px] py-4 px-3">
+                  No leagues currently in season
+                </p>
+              )}
+              {activeLeagues.length > 0 && scorers.length === 0 && (
                 <div className="space-y-1.5">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="animate-pulse flex items-center gap-2.5 px-2 py-1.5">
@@ -177,8 +194,13 @@ function RightPanelDefault() {
           <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Standings</span>
         </div>
 
-        {Object.entries(LEAGUE_LABELS).map(([idStr, label]) => {
-          const id = Number(idStr);
+        {activeLeagues.length === 0 && (
+          <p className="text-center text-gray-500 text-[11px] py-4 px-3">
+            No leagues currently in season
+          </p>
+        )}
+
+        {activeLeagues.map(({ id, name: label }) => {
           const table = standings[id] ?? [];
           const isCollapsed = standingsCollapsed[id];
           return (

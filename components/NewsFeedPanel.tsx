@@ -2,41 +2,35 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Newspaper } from "lucide-react";
-import { TOP_LEAGUES } from "@/lib/api-football";
+import type { NewsItem } from "@/types";
+import type { ActiveLeague } from "@/app/api/football/leagues/active/route";
 import clsx from "clsx";
-
-interface NewsItem {
-  id: string;
-  type: "injury" | "result";
-  text: string;
-  timestamp: string;
-}
-
-const LEAGUE_OPTIONS = [
-  { id: TOP_LEAGUES.premierLeague, label: "PL" },
-  { id: TOP_LEAGUES.laLiga, label: "LaLiga" },
-  { id: TOP_LEAGUES.bundesliga, label: "Bundesliga" },
-];
 
 interface Props {
   collapsed: boolean;
   onToggleCollapse: () => void;
+  activeLeagues: ActiveLeague[];
 }
 
-export default function NewsFeedPanel({ collapsed, onToggleCollapse }: Props) {
+const ALL = "all";
+
+export default function NewsFeedPanel({ collapsed, onToggleCollapse, activeLeagues }: Props) {
   const [items, setItems] = useState<NewsItem[]>([]);
-  const [activeLeague, setActiveLeague] = useState(TOP_LEAGUES.premierLeague);
+  const [activeLeague, setActiveLeague] = useState<number | typeof ALL>(ALL);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (collapsed) return;
+    if (activeLeagues.length === 0) return;
 
     let cancelled = false;
 
     async function fetchNews() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/football/news?league=${activeLeague}`);
+        const leagueIds =
+          activeLeague === ALL ? activeLeagues.map((l) => l.id) : [activeLeague];
+        const res = await fetch(`/api/football/news?leagues=${leagueIds.join(",")}`);
         const data = await res.json();
         if (!cancelled && Array.isArray(data)) setItems(data);
       } catch {
@@ -52,7 +46,7 @@ export default function NewsFeedPanel({ collapsed, onToggleCollapse }: Props) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [activeLeague, collapsed]);
+  }, [activeLeague, collapsed, activeLeagues]);
 
   function formatTime(iso: string) {
     try {
@@ -87,32 +81,50 @@ export default function NewsFeedPanel({ collapsed, onToggleCollapse }: Props) {
 
       {!collapsed && (
         <>
-          {/* League switcher */}
-          <div className="flex gap-1 px-3 pb-2 overflow-x-auto scrollbar-hide">
-            {LEAGUE_OPTIONS.map(({ id, label }) => (
+          {/* League switcher — built from whichever leagues currently have a season in progress */}
+          {activeLeagues.length > 0 && (
+            <div className="flex gap-1 px-3 pb-2 overflow-x-auto scrollbar-hide">
               <button
-                key={id}
-                onClick={() => setActiveLeague(id)}
+                onClick={() => setActiveLeague(ALL)}
                 className={clsx(
                   "px-2.5 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0",
-                  activeLeague === id
+                  activeLeague === ALL
                     ? "bg-brand-green text-black"
                     : "bg-brand-dark-4 text-gray-400 hover:text-white"
                 )}
               >
-                {label}
+                All
               </button>
-            ))}
-          </div>
+              {activeLeagues.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => setActiveLeague(l.id)}
+                  className={clsx(
+                    "px-2.5 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0",
+                    activeLeague === l.id
+                      ? "bg-brand-green text-black"
+                      : "bg-brand-dark-4 text-gray-400 hover:text-white"
+                  )}
+                >
+                  {l.name}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Items list */}
           <div className="pb-3 space-y-0.5">
-            {loading && (
+            {activeLeagues.length === 0 && (
+              <p className="text-center text-gray-500 text-[11px] py-4 px-3">
+                No leagues currently in season
+              </p>
+            )}
+            {activeLeagues.length > 0 && loading && (
               <div className="flex items-center justify-center py-4">
                 <div className="w-4 h-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
               </div>
             )}
-            {!loading && items.length === 0 && (
+            {activeLeagues.length > 0 && !loading && items.length === 0 && (
               <p className="text-center text-gray-500 text-[11px] py-4 px-3">
                 No news available right now
               </p>
@@ -123,7 +135,10 @@ export default function NewsFeedPanel({ collapsed, onToggleCollapse }: Props) {
                 className="px-4 py-2 hover:bg-brand-dark-3 transition-colors"
               >
                 <p className="text-[11px] text-gray-300 leading-relaxed">{item.text}</p>
-                <p className="text-[10px] text-gray-600 mt-0.5">{formatTime(item.timestamp)}</p>
+                <p className="text-[10px] text-gray-600 mt-0.5">
+                  {activeLeague === ALL && item.leagueName ? `${item.leagueName} · ` : ""}
+                  {formatTime(item.timestamp)}
+                </p>
               </div>
             ))}
           </div>

@@ -100,6 +100,8 @@ export interface NewsItem {
   type: "injury" | "result";
   text: string;
   timestamp: string;
+  leagueId: number;
+  leagueName: string;
 }
 
 export interface CommunityPost {

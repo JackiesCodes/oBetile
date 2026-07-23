@@ -48,6 +48,33 @@ export const TOP_LEAGUES = {
   saudiProLeague: 307,
 };
 
+export interface LeagueMeta {
+  id: number;
+  name: string;
+  country: string;
+}
+
+// Canonical list of leagues the UI can surface for news/standings/scorers.
+// A league only renders in those panels once /api/football/leagues/active
+// confirms it has a season currently in progress (see that route for the
+// start/end date check) — this is what keeps the panels from showing
+// competitions that haven't kicked off yet (e.g. EPL in July).
+export const MAJOR_LEAGUES: LeagueMeta[] = [
+  { id: TOP_LEAGUES.premierLeague, name: "Premier League", country: "England" },
+  { id: TOP_LEAGUES.laLiga, name: "LaLiga", country: "Spain" },
+  { id: TOP_LEAGUES.bundesliga, name: "Bundesliga", country: "Germany" },
+  { id: TOP_LEAGUES.serieA, name: "Serie A", country: "Italy" },
+  { id: TOP_LEAGUES.ligue1, name: "Ligue 1", country: "France" },
+  { id: TOP_LEAGUES.championsLeague, name: "Champions League", country: "World" },
+  { id: TOP_LEAGUES.eredivisie, name: "Eredivisie", country: "Netherlands" },
+  { id: TOP_LEAGUES.primeiraLiga, name: "Primeira Liga", country: "Portugal" },
+  { id: TOP_LEAGUES.championship, name: "Championship", country: "England" },
+  { id: TOP_LEAGUES.mls, name: "MLS", country: "USA" },
+  { id: TOP_LEAGUES.brasileirao, name: "Brasileirão", country: "Brazil" },
+  { id: TOP_LEAGUES.ligaMx, name: "Liga MX", country: "Mexico" },
+  { id: TOP_LEAGUES.saudiProLeague, name: "Saudi Pro League", country: "Saudi Arabia" },
+];
+
 // Normalise an API-Football fixture response into the local Match type
 const LIVE_STATUSES = new Set(["1H", "2H", "ET", "P", "HT", "BT"]);
 const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"]);
