@@ -2,26 +2,127 @@ import type { APIFixture, Match } from "@/types";
 
 const BASE = "https://v3.football.api-sports.io";
 
+export class ApiFootballError extends Error {
+  constructor(message: string, readonly kind: "auth" | "quota" | "plan" | "http" | "api") {
+    super(message);
+    this.name = "ApiFootballError";
+  }
+}
+
+/** Quota counters API-Football reports on every response header. */
+export interface RateLimit {
+  dayLimit: number | null;
+  dayRemaining: number | null;
+  minuteLimit: number | null;
+  minuteRemaining: number | null;
+}
+
+export interface ApiEnvelope<T> {
+  response: T;
+  rateLimit: RateLimit;
+  resultCount: number;
+}
+
+function readKey(): string {
+  const key = process.env.APIFOOTBALL_KEY?.trim();
+  if (!key) {
+    throw new ApiFootballError(
+      "APIFOOTBALL_KEY is not set. Copy .env.example to .env.local and add your " +
+        "key from https://dashboard.api-football.com, then restart the dev server.",
+      "auth"
+    );
+  }
+  return key;
+}
+
+const num = (v: string | null) => (v === null || v === "" ? null : Number(v));
+
+/**
+ * API-Football answers with HTTP 200 even when the request failed — a bad key,
+ * an exhausted quota, or an endpoint your plan doesn't cover all arrive as a
+ * populated `errors` field alongside an empty `response`. Reading `.response`
+ * blindly turns every one of those into a silently empty UI, so classify the
+ * error here and throw instead.
+ */
+function assertNoApiError(errors: unknown): void {
+  if (!errors) return;
+  // The success case is an empty array; failures are an object of field -> message.
+  if (Array.isArray(errors)) {
+    if (errors.length === 0) return;
+    throw new ApiFootballError(`API-Football: ${errors.join("; ")}`, "api");
+  }
+  if (typeof errors !== "object") return;
+
+  const entries = Object.entries(errors as Record<string, string>);
+  if (entries.length === 0) return;
+
+  const detail = entries.map(([k, v]) => `${k}: ${v}`).join("; ");
+  const fields = new Set(entries.map(([k]) => k));
+  const kind = fields.has("token")
+    ? "auth"
+    : fields.has("requests") || fields.has("rateLimit")
+    ? "quota"
+    : fields.has("plan") || fields.has("access")
+    ? "plan"
+    : "api";
+  throw new ApiFootballError(`API-Football: ${detail}`, kind);
+}
+
+/** Full envelope — response payload plus quota headers. */
+export async function apiFetchRaw<T>(
+  path: string,
+  params?: Record<string, string>,
+  revalidate = 60
+): Promise<ApiEnvelope<T>> {
+  const url = new URL(`${BASE}${path}`);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  }
+
+  const res = await fetch(url.toString(), {
+    headers: { "x-apisports-key": readKey() },
+    next: { revalidate },
+  });
+
+  if (!res.ok) {
+    // 401 = key missing/invalid; 403 = key valid but the plan forbids it;
+    // 429 (and API-Football's own 499) = rate limited.
+    const kind =
+      res.status === 401
+        ? "auth"
+        : res.status === 403
+        ? "plan"
+        : res.status === 429 || res.status === 499
+        ? "quota"
+        : "http";
+    throw new ApiFootballError(
+      `API-Football error: ${res.status} ${res.statusText} (${path})`,
+      kind
+    );
+  }
+
+  const json = await res.json();
+  assertNoApiError(json?.errors);
+
+  return {
+    response: (json?.response ?? []) as T,
+    resultCount: typeof json?.results === "number" ? json.results : 0,
+    rateLimit: {
+      dayLimit: num(res.headers.get("x-ratelimit-requests-limit")),
+      dayRemaining: num(res.headers.get("x-ratelimit-requests-remaining")),
+      minuteLimit: num(res.headers.get("X-RateLimit-Limit")),
+      minuteRemaining: num(res.headers.get("X-RateLimit-Remaining")),
+    },
+  };
+}
+
 export async function apiFetch<T>(
   path: string,
   params?: Record<string, string>,
   revalidate = 60
 ): Promise<T> {
-  const url = new URL(`${BASE}${path}`);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  }
-  const res = await fetch(url.toString(), {
-    headers: {
-      "x-apisports-key": process.env.APIFOOTBALL_KEY ?? "",
-    },
-    next: { revalidate },
-  });
-  if (!res.ok) {
-    throw new Error(`API-Football error: ${res.status} ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.response as T;
+  const { response } = await apiFetchRaw<T>(path, params, revalidate);
+  return response;
 }
 
 // Current season helper — update each year

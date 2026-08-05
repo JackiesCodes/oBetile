@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiFetch, MAJOR_LEAGUES } from "@/lib/api-football";
+import { apiFetch, ApiFootballError, MAJOR_LEAGUES } from "@/lib/api-football";
+import { apiErrorResponse } from "@/lib/api-error";
 
 interface APILeagueSeason {
   year: number;
@@ -57,7 +58,13 @@ export async function GET(req: NextRequest) {
             season: activeSeason.year,
           };
           return active;
-        } catch {
+        } catch (e) {
+          // Per-league failures are tolerated so one bad league doesn't blank
+          // the panel — but a credential or quota failure affects every league,
+          // so let it bubble up instead of masking it as "no active leagues".
+          if (e instanceof ApiFootballError && e.kind !== "api" && e.kind !== "http") {
+            throw e;
+          }
           return null;
         }
       })
@@ -68,6 +75,6 @@ export async function GET(req: NextRequest) {
       headers: { "Cache-Control": "s-maxage=3600, stale-while-revalidate=300" },
     });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiErrorResponse(e);
   }
 }

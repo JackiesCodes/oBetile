@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiFetch, CURRENT_SEASON } from "@/lib/api-football";
+import { apiErrorResponse } from "@/lib/api-error";
 
 export async function GET(
   req: NextRequest,
@@ -15,6 +16,6 @@ export async function GET(
     );
     return NextResponse.json(data);
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiErrorResponse(e);
   }
 }

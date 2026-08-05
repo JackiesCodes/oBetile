@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiFetch, CURRENT_SEASON, MAJOR_LEAGUES } from "@/lib/api-football";
+import { apiErrorResponse } from "@/lib/api-error";
 import type { NewsItem } from "@/types";
 
 interface APIInjury {
@@ -100,6 +101,6 @@ export async function GET(req: NextRequest) {
       headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
     });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiErrorResponse(e);
   }
 }

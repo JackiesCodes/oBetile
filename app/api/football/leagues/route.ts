@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api-football";
+import { apiErrorResponse } from "@/lib/api-error";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -12,6 +13,6 @@ export async function GET(req: NextRequest) {
     const data = await apiFetch("/leagues", params, 3600);
     return NextResponse.json(data);
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiErrorResponse(e);
   }
 }
