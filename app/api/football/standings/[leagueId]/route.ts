@@ -2,15 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetch, resolveSeason } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 
-interface StandingsEntry {
-  league?: { season?: number; standings?: unknown[][] };
+interface StandingsRow {
+  all?: { played?: number };
 }
 
-/** A season can exist and still carry no table before its first round. */
-function hasTable(data: unknown): data is StandingsEntry[] {
+interface StandingsEntry {
+  league?: { season?: number; standings?: StandingsRow[][] };
+}
+
+/**
+ * Whether a table reflects matches actually played.
+ *
+ * Presence of rows is not enough: before a season's first round API-Football
+ * returns a full placeholder table with every team on played 0, points 0 and
+ * form null, ordered alphabetically. Rendering that as a title race puts
+ * whoever is first alphabetically top of the league, so it has to count as
+ * "no table yet".
+ */
+function hasPlayedTable(data: unknown): boolean {
   if (!Array.isArray(data) || data.length === 0) return false;
   const groups = (data[0] as StandingsEntry)?.league?.standings;
-  return Array.isArray(groups) && groups.some((g) => Array.isArray(g) && g.length > 0);
+  if (!Array.isArray(groups)) return false;
+  return groups.some(
+    (g) => Array.isArray(g) && g.some((row) => (row?.all?.played ?? 0) > 0)
+  );
 }
 
 export async function GET(
@@ -27,18 +42,18 @@ export async function GET(
     let data = await apiFetch("/standings", { league: leagueId, season }, 3600);
     let isFinal = false;
 
-    // Between seasons the current one exists but has no table yet — a league in
-    // the days before kick-off would render as an empty panel. Fall back to the
-    // last completed season and flag it, so the client can label the table
-    // rather than pass off finished results as a live race.
-    if (!explicitSeason && !hasTable(data)) {
+    // Before a season's first round there is nothing meaningful to show — only
+    // an all-zero placeholder table. Fall back to the last completed season and
+    // flag it, so the client can label the table rather than pass off either
+    // finished results or an empty grid as a live race.
+    if (!explicitSeason && !hasPlayedTable(data)) {
       const previous = String(Number(season) - 1);
       const previousData = await apiFetch(
         "/standings",
         { league: leagueId, season: previous },
         3600
       );
-      if (hasTable(previousData)) {
+      if (hasPlayedTable(previousData)) {
         data = previousData;
         season = previous;
         isFinal = true;
