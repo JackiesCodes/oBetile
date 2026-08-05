@@ -17,7 +17,6 @@ interface LeagueConfig {
   id: number;
   name: string;
   flag: string;
-  season: string;
 }
 
 interface LeagueData extends LeagueConfig {
@@ -33,23 +32,26 @@ const REGIONS: { id: Region; label: string }[] = [
 ];
 
 const LEAGUE_CONFIG: Record<Region, LeagueConfig[]> = {
+  // No season here — the standings route resolves the season each league is
+  // actually in. Hardcoding it meant Europe and the Americas drifted apart
+  // every January and the panel silently rendered empty tables.
   Europe: [
-    { id: 39,  name: "Premier League",  flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", season: "2025" },
-    { id: 140, name: "LaLiga",           flag: "🇪🇸", season: "2025" },
-    { id: 78,  name: "Bundesliga",       flag: "🇩🇪", season: "2025" },
-    { id: 135, name: "Serie A",          flag: "🇮🇹", season: "2025" },
-    { id: 61,  name: "Ligue 1",          flag: "🇫🇷", season: "2025" },
-    { id: 88,  name: "Eredivisie",       flag: "🇳🇱", season: "2025" },
-    { id: 94,  name: "Primeira Liga",    flag: "🇵🇹", season: "2025" },
-    { id: 40,  name: "Championship",     flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", season: "2025" },
+    { id: 39,  name: "Premier League",  flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+    { id: 140, name: "LaLiga",           flag: "🇪🇸" },
+    { id: 78,  name: "Bundesliga",       flag: "🇩🇪" },
+    { id: 135, name: "Serie A",          flag: "🇮🇹" },
+    { id: 61,  name: "Ligue 1",          flag: "🇫🇷" },
+    { id: 88,  name: "Eredivisie",       flag: "🇳🇱" },
+    { id: 94,  name: "Primeira Liga",    flag: "🇵🇹" },
+    { id: 40,  name: "Championship",     flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
   ],
   Americas: [
-    { id: 253, name: "MLS",             flag: "🇺🇸", season: "2026" },
-    { id: 71,  name: "Brasileirão",     flag: "🇧🇷", season: "2026" },
-    { id: 262, name: "Liga MX",         flag: "🇲🇽", season: "2026" },
+    { id: 253, name: "MLS",             flag: "🇺🇸" },
+    { id: 71,  name: "Brasileirão",     flag: "🇧🇷" },
+    { id: 262, name: "Liga MX",         flag: "🇲🇽" },
   ],
   Other: [
-    { id: 307, name: "Saudi Pro League", flag: "🇸🇦", season: "2025" },
+    { id: 307, name: "Saudi Pro League", flag: "🇸🇦" },
   ],
 };
 
@@ -86,7 +88,7 @@ export default function SeasonPicksPanel() {
     Promise.all(
       configs.map(async (l) => {
         try {
-          const res = await fetch(`/api/football/standings/${l.id}?season=${l.season}`);
+          const res = await fetch(`/api/football/standings/${l.id}`);
           const data = await res.json();
           const standings: Standing[] =
             Array.isArray(data) && data[0]?.league?.standings?.[0]

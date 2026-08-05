@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiFetch, CURRENT_SEASON, MAJOR_LEAGUES } from "@/lib/api-football";
+import { apiFetch, resolveSeason, MAJOR_LEAGUES } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import type { NewsItem } from "@/types";
 
@@ -22,10 +22,14 @@ async function fetchLeagueNews(leagueId: number, leagueName: string): Promise<Ne
     .toISOString()
     .split("T")[0];
 
+  // Per-league, so calendar-year competitions get their own season rather than
+  // the European one — asking for the wrong season returns an empty feed.
+  const season = await resolveSeason(leagueId);
+
   const [injuries, recentFixtures] = await Promise.all([
     apiFetch<APIInjury[]>(
       "/injuries",
-      { league: String(leagueId), season: CURRENT_SEASON },
+      { league: String(leagueId), season },
       300
     ).catch(() => [] as APIInjury[]),
 
@@ -33,7 +37,7 @@ async function fetchLeagueNews(leagueId: number, leagueName: string): Promise<Ne
       "/fixtures",
       {
         league: String(leagueId),
-        season: CURRENT_SEASON,
+        season,
         from: fromDate,
         to: toDate,
         status: "FT",

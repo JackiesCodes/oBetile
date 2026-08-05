@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiFetch, CURRENT_SEASON } from "@/lib/api-football";
+import { apiFetch, resolveSeason } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 
 export async function GET(
@@ -7,7 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ leagueId: string }> }
 ) {
   const { leagueId } = await params;
-  const season = new URL(req.url).searchParams.get("season") ?? CURRENT_SEASON;
+  const season =
+    new URL(req.url).searchParams.get("season") ?? (await resolveSeason(leagueId));
   try {
     const data = await apiFetch(
       "/players/topscorers",

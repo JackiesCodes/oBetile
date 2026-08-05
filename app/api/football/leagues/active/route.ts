@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiFetch, ApiFootballError, MAJOR_LEAGUES } from "@/lib/api-football";
+import {
+  apiFetch,
+  ApiFootballError,
+  inProgressSeason,
+  LEAGUE_META_TTL,
+  MAJOR_LEAGUES,
+  type APILeagueInfo,
+} from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
-
-interface APILeagueSeason {
-  year: number;
-  start: string;
-  end: string;
-  current: boolean;
-}
-
-interface APILeagueInfo {
-  league: { id: number; name: string; logo: string };
-  country: { name: string; flag: string | null };
-  seasons: APILeagueSeason[];
-}
 
 export interface ActiveLeague {
   id: number;
@@ -26,13 +20,8 @@ export interface ActiveLeague {
 // A league is "active" when today falls within the start/end dates of its
 // current season — this is what keeps preseason competitions (e.g. EPL in
 // July) out of the news/standings/scorers panels until they actually kick off.
-function isInSeason(seasons: APILeagueSeason[]): APILeagueSeason | undefined {
-  const today = new Date();
-  return seasons.find((s) => {
-    if (!s.current) return false;
-    return today >= new Date(s.start) && today <= new Date(s.end);
-  });
-}
+// The check itself lives in lib/api-football as inProgressSeason, shared with
+// resolveSeason.
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -45,10 +34,14 @@ export async function GET(req: NextRequest) {
     const results = await Promise.all(
       ids.map(async (id) => {
         try {
-          const data = await apiFetch<APILeagueInfo[]>("/leagues", { id: String(id) }, 3600);
+          const data = await apiFetch<APILeagueInfo[]>(
+            "/leagues",
+            { id: String(id) },
+            LEAGUE_META_TTL
+          );
           const info = data[0];
           if (!info) return null;
-          const activeSeason = isInSeason(info.seasons ?? []);
+          const activeSeason = inProgressSeason(info.seasons ?? []);
           if (!activeSeason) return null;
           const active: ActiveLeague = {
             id: info.league.id,

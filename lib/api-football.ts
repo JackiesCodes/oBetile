@@ -125,8 +125,105 @@ export async function apiFetch<T>(
   return response;
 }
 
-// Current season helper — update each year
-export const CURRENT_SEASON = "2025";
+/**
+ * How a competition labels its seasons in API-Football.
+ *
+ * - `split-year`: runs Aug–May and is labelled by its *start* year, so the
+ *   2026/27 Premier League season is `"2026"` right through to May 2027.
+ * - `calendar-year`: runs within one year and is labelled by it, so MLS in
+ *   Feb 2027 is `"2027"` while the Premier League is still `"2026"`.
+ *
+ * That divergence is why a single global season constant cannot be correct for
+ * every competition at once — see resolveSeason below.
+ */
+export type SeasonCalendar = "split-year" | "calendar-year";
+
+/** Date-derived season label. No network call — used as the fallback. */
+export function seasonFromDate(
+  calendar: SeasonCalendar = "split-year",
+  now: Date = new Date()
+): string {
+  const year = now.getUTCFullYear();
+  if (calendar === "calendar-year") return String(year);
+  // Split-year seasons roll over in the summer: from July onwards we are in the
+  // season labelled with the current year, before that still the previous one.
+  return String(now.getUTCMonth() >= 6 ? year : year - 1);
+}
+
+/**
+ * Default season for split-year competitions, derived from today's date rather
+ * than hardcoded so it stops going stale every August.
+ *
+ * Evaluated when the module loads, which is per server boot / serverless cold
+ * start — fine for a value that changes once a year. Prefer `resolveSeason()`
+ * anywhere the competition is known; this is only the fallback.
+ */
+export const CURRENT_SEASON = seasonFromDate("split-year");
+
+/**
+ * Shared TTL for /leagues metadata. resolveSeason and the leagues/active route
+ * fetch the same URL with this same value so they land on one Next fetch-cache
+ * entry instead of each spending a request — season data changes about twice a
+ * year, and the free plan only allows 100 requests/day.
+ */
+export const LEAGUE_META_TTL = 3600;
+
+export interface APILeagueSeason {
+  year: number;
+  start: string;
+  end: string;
+  current: boolean;
+}
+
+export interface APILeagueInfo {
+  league: { id: number; name: string; logo: string };
+  country: { name: string; flag: string | null };
+  seasons: APILeagueSeason[];
+}
+
+/** The season currently in progress, if today falls inside one. */
+export function inProgressSeason(
+  seasons: APILeagueSeason[],
+  now: Date = new Date()
+): APILeagueSeason | undefined {
+  return seasons.find(
+    (s) => s.current && now >= new Date(s.start) && now <= new Date(s.end)
+  );
+}
+
+/**
+ * Authoritative season for a league: asks API-Football which season is actually
+ * running rather than guessing from the calendar, so split-year and
+ * calendar-year competitions both come out right.
+ *
+ * Falls back to the date heuristic when the league is between seasons or the
+ * lookup fails, so callers always get a usable value.
+ */
+export async function resolveSeason(leagueId: number | string): Promise<string> {
+  const id = Number(leagueId);
+  const calendar =
+    MAJOR_LEAGUES.find((l) => l.id === id)?.calendar ?? "split-year";
+
+  try {
+    const data = await apiFetch<APILeagueInfo[]>(
+      "/leagues",
+      { id: String(id) },
+      LEAGUE_META_TTL
+    );
+    const seasons = data?.[0]?.seasons ?? [];
+    // Prefer the season actually in progress; on an off-season break fall back
+    // to whichever season the API still flags as current.
+    const season =
+      inProgressSeason(seasons) ??
+      [...seasons].reverse().find((s) => s.current);
+    if (season) return String(season.year);
+  } catch {
+    // Credential and quota problems surface on the caller's own data request;
+    // season resolution just degrades to the heuristic rather than failing.
+  }
+
+  return seasonFromDate(calendar);
+}
 
 // League IDs
 export const TOP_LEAGUES = {
@@ -153,6 +250,8 @@ export interface LeagueMeta {
   id: number;
   name: string;
   country: string;
+  /** Season-labelling convention, used only when API lookup is unavailable. */
+  calendar: SeasonCalendar;
 }
 
 // Canonical list of leagues the UI can surface for news/standings/scorers.
@@ -161,19 +260,21 @@ export interface LeagueMeta {
 // start/end date check) — this is what keeps the panels from showing
 // competitions that haven't kicked off yet (e.g. EPL in July).
 export const MAJOR_LEAGUES: LeagueMeta[] = [
-  { id: TOP_LEAGUES.premierLeague, name: "Premier League", country: "England" },
-  { id: TOP_LEAGUES.laLiga, name: "LaLiga", country: "Spain" },
-  { id: TOP_LEAGUES.bundesliga, name: "Bundesliga", country: "Germany" },
-  { id: TOP_LEAGUES.serieA, name: "Serie A", country: "Italy" },
-  { id: TOP_LEAGUES.ligue1, name: "Ligue 1", country: "France" },
-  { id: TOP_LEAGUES.championsLeague, name: "Champions League", country: "World" },
-  { id: TOP_LEAGUES.eredivisie, name: "Eredivisie", country: "Netherlands" },
-  { id: TOP_LEAGUES.primeiraLiga, name: "Primeira Liga", country: "Portugal" },
-  { id: TOP_LEAGUES.championship, name: "Championship", country: "England" },
-  { id: TOP_LEAGUES.mls, name: "MLS", country: "USA" },
-  { id: TOP_LEAGUES.brasileirao, name: "Brasileirão", country: "Brazil" },
-  { id: TOP_LEAGUES.ligaMx, name: "Liga MX", country: "Mexico" },
-  { id: TOP_LEAGUES.saudiProLeague, name: "Saudi Pro League", country: "Saudi Arabia" },
+  { id: TOP_LEAGUES.premierLeague, name: "Premier League", country: "England", calendar: "split-year" },
+  { id: TOP_LEAGUES.laLiga, name: "LaLiga", country: "Spain", calendar: "split-year" },
+  { id: TOP_LEAGUES.bundesliga, name: "Bundesliga", country: "Germany", calendar: "split-year" },
+  { id: TOP_LEAGUES.serieA, name: "Serie A", country: "Italy", calendar: "split-year" },
+  { id: TOP_LEAGUES.ligue1, name: "Ligue 1", country: "France", calendar: "split-year" },
+  { id: TOP_LEAGUES.championsLeague, name: "Champions League", country: "World", calendar: "split-year" },
+  { id: TOP_LEAGUES.eredivisie, name: "Eredivisie", country: "Netherlands", calendar: "split-year" },
+  { id: TOP_LEAGUES.primeiraLiga, name: "Primeira Liga", country: "Portugal", calendar: "split-year" },
+  { id: TOP_LEAGUES.championship, name: "Championship", country: "England", calendar: "split-year" },
+  // The Americas run inside a single calendar year, so from January they are a
+  // season ahead of the European leagues.
+  { id: TOP_LEAGUES.mls, name: "MLS", country: "USA", calendar: "calendar-year" },
+  { id: TOP_LEAGUES.brasileirao, name: "Brasileirão", country: "Brazil", calendar: "calendar-year" },
+  { id: TOP_LEAGUES.ligaMx, name: "Liga MX", country: "Mexico", calendar: "calendar-year" },
+  { id: TOP_LEAGUES.saudiProLeague, name: "Saudi Pro League", country: "Saudi Arabia", calendar: "split-year" },
 ];
 
 // Normalise an API-Football fixture response into the local Match type
