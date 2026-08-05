@@ -21,6 +21,16 @@ interface LeagueConfig {
 
 interface LeagueData extends LeagueConfig {
   standings: Standing[];
+  /** Season the table belongs to, as reported by the standings route. */
+  season?: number;
+  /** True when the table is a completed season rather than one in progress. */
+  isFinal?: boolean;
+}
+
+/** "2025" -> "2025/26" for split-year competitions. */
+function seasonLabel(season: number, calendarYear: boolean) {
+  if (calendarYear) return String(season);
+  return `${season}/${String((season + 1) % 100).padStart(2, "0")}`;
 }
 
 type Region = "Europe" | "Americas" | "Other";
@@ -94,7 +104,11 @@ export default function SeasonPicksPanel() {
             Array.isArray(data) && data[0]?.league?.standings?.[0]
               ? data[0].league.standings[0]
               : [];
-          return { ...l, standings };
+          // The route reports which season the table is for, and whether that
+          // season is already complete (it falls back between seasons).
+          const season = Number(res.headers.get("x-season")) || undefined;
+          const isFinal = res.headers.get("x-season-final") === "1";
+          return { ...l, standings, season, isFinal };
         } catch {
           return { ...l, standings: [] };
         }
@@ -156,13 +170,20 @@ export default function SeasonPicksPanel() {
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-brand-dark-3">
                   <span className="text-lg">{league.flag}</span>
                   <span className="text-sm font-semibold text-gray-200">{league.name}</span>
+                  {league.isFinal && league.season && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/90 bg-amber-400/10 px-1.5 py-0.5 rounded">
+                      {seasonLabel(league.season, activeRegion === "Americas")} final
+                    </span>
+                  )}
                   <span className="text-[10px] text-gray-500 ml-auto">{played} played</span>
                 </div>
 
                 {/* Title race */}
                 <div className="flex items-center gap-1.5 px-4 pt-2.5 pb-1">
                   <TrendingUp size={11} className="text-brand-green shrink-0" />
-                  <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">Title Race</span>
+                  <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">
+                    {league.isFinal ? "Final Top 4" : "Title Race"}
+                  </span>
                 </div>
                 {top4.map((row, idx) => (
                   <div
@@ -186,7 +207,9 @@ export default function SeasonPicksPanel() {
                 {/* Relegation zone */}
                 <div className="flex items-center gap-1.5 px-4 pt-2.5 pb-1">
                   <TrendingDown size={11} className="text-red-400 shrink-0" />
-                  <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Relegation Zone</span>
+                  <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                    {league.isFinal ? "Relegated" : "Relegation Zone"}
+                  </span>
                 </div>
                 {relegation.map((row) => (
                   <div
