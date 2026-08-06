@@ -1,18 +1,23 @@
 import { Sport } from "@/types";
 
+// No liveCount here. Only soccer has a real data source (API-Football), and the
+// homepage fills its count in from the live fixtures endpoint. Every other sport
+// previously carried an invented number, so the tab bar advertised e.g.
+// "Basketball 32" live when the app has no basketball data at all and the sport
+// page says "coming soon".
 export const sports: Sport[] = [
-  { id: "soccer", name: "Soccer", icon: "⚽", liveCount: 111 },
-  { id: "tennis", name: "Tennis", icon: "🎾", liveCount: 9 },
-  { id: "basketball", name: "Basketball", icon: "🏀", liveCount: 32 },
-  { id: "cricket", name: "Cricket", icon: "🏏", liveCount: 3 },
-  { id: "rugby-union", name: "Rugby Union", icon: "🏉", liveCount: 1 },
-  { id: "table-tennis", name: "Table Tennis", icon: "🏓", liveCount: 7 },
-  { id: "baseball", name: "Baseball", icon: "⚾", liveCount: 33 },
+  { id: "soccer", name: "Soccer", icon: "⚽" },
+  { id: "tennis", name: "Tennis", icon: "🎾" },
+  { id: "basketball", name: "Basketball", icon: "🏀" },
+  { id: "cricket", name: "Cricket", icon: "🏏" },
+  { id: "rugby-union", name: "Rugby Union", icon: "🏉" },
+  { id: "table-tennis", name: "Table Tennis", icon: "🏓" },
+  { id: "baseball", name: "Baseball", icon: "⚾" },
   { id: "boxing", name: "Boxing", icon: "🥊" },
-  { id: "golf", name: "Golf", icon: "⛳", liveCount: 8 },
-  { id: "handball", name: "Handball", icon: "🤾", liveCount: 1 },
-  { id: "cycling", name: "Cycling", icon: "🚴", liveCount: 6 },
-  { id: "snooker", name: "Snooker", icon: "🎱", liveCount: 1 },
+  { id: "golf", name: "Golf", icon: "⛳" },
+  { id: "handball", name: "Handball", icon: "🤾" },
+  { id: "cycling", name: "Cycling", icon: "🚴" },
+  { id: "snooker", name: "Snooker", icon: "🎱" },
   { id: "esports", name: "eSports", icon: "🎮" },
   { id: "netball", name: "Netball", icon: "🥅" },
 ];

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { serverErrorResponse } from "@/lib/api-error";
 
 export async function POST(
   _req: NextRequest,
@@ -39,6 +40,6 @@ export async function POST(
       return NextResponse.json({ liked: true });
     }
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return serverErrorResponse("community.like", e);
   }
 }
