@@ -16,7 +16,7 @@ interface APIStatus {
  */
 export async function GET() {
   try {
-    const { response } = await apiFetchRaw<APIStatus>("/status", undefined, 0);
+    const { response, rateLimit } = await apiFetchRaw<APIStatus>("/status", undefined, 0);
 
     // A wrong-but-well-formed key returns 200 with an empty response here
     // rather than an `errors` payload, so treat the empty case as a failure.
@@ -36,6 +36,11 @@ export async function GET() {
         requestsToday: requests.current,
         dailyLimit: requests.limit_day,
         remainingToday: requests.limit_day - requests.current,
+        // The per-minute ceiling is the one that actually bites: a route that
+        // fans out concurrently can exhaust it while the daily quota is barely
+        // touched.
+        perMinuteLimit: rateLimit.minuteLimit,
+        perMinuteRemaining: rateLimit.minuteRemaining,
         configuredSeason: CURRENT_SEASON,
       },
       { headers: { "Cache-Control": "no-store" } }
