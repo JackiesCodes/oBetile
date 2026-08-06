@@ -204,6 +204,20 @@ export interface APILeagueInfo {
   seasons: APILeagueSeason[];
 }
 
+/**
+ * Every league with a season currently in progress, in a single request.
+ *
+ * Deliberately one call rather than one per league. Asking about each of the
+ * thirteen major leagues individually put thirteen requests inside the same
+ * minute, which the account's burst allowance rejects — the observed ceiling is
+ * far below the 300/min the status headers advertise, and a single visitor was
+ * enough to trigger it. One call, shared by resolveSeason and the active-leagues
+ * route through the same cache entry, removes the burst entirely.
+ */
+export async function fetchCurrentLeagues(): Promise<APILeagueInfo[]> {
+  return apiFetch<APILeagueInfo[]>("/leagues", { current: "true" }, LEAGUE_META_TTL);
+}
+
 /** The season currently in progress, if today falls inside one. */
 export function inProgressSeason(
   seasons: APILeagueSeason[],
@@ -228,12 +242,10 @@ export async function resolveSeason(leagueId: number | string): Promise<string> 
     MAJOR_LEAGUES.find((l) => l.id === id)?.calendar ?? "split-year";
 
   try {
-    const data = await apiFetch<APILeagueInfo[]>(
-      "/leagues",
-      { id: String(id) },
-      LEAGUE_META_TTL
-    );
-    const seasons = data?.[0]?.seasons ?? [];
+    // Reuses the one shared /leagues call rather than asking per league, so a
+    // page resolving several competitions still costs a single request.
+    const leagues = await fetchCurrentLeagues();
+    const seasons = leagues.find((l) => l.league?.id === id)?.seasons ?? [];
     // Prefer the season actually in progress; on an off-season break fall back
     // to whichever season the API still flags as current.
     const season =
