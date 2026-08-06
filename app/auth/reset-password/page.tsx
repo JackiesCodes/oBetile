@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 import { PASSWORD_HINT, describePasswordProblems } from "@/lib/password";
+import { friendlyAuthError } from "@/lib/auth-errors";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function ResetPasswordPage() {
     setLoading(false);
 
     if (err) {
-      setError(err.message);
+      setError(friendlyAuthError(err.message) ?? "Something went wrong. Please try again.");
     } else {
       setSuccess(true);
     }

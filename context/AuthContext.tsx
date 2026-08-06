@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -48,14 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!hasSupabaseConfig()) return { error: "Auth not configured" };
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    return { error: friendlyAuthError(error?.message) };
   };
 
   const signUp = async (email: string, password: string) => {
     if (!hasSupabaseConfig()) return { error: "Auth not configured" };
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({ email, password });
-    return { error: error?.message ?? null };
+    return { error: friendlyAuthError(error?.message) };
   };
 
   const resetPasswordForEmail = async (email: string) => {
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient();
     const redirectTo = `${typeof window !== "undefined" ? window.location.origin : "https://o-betile.vercel.app"}/auth/callback?type=recovery`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-    return { error: error?.message ?? null };
+    return { error: friendlyAuthError(error?.message) };
   };
 
   const signOut = async () => {
