@@ -3,39 +3,35 @@ import type { createClient } from "@/lib/supabase/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-/** Per-action allowances. Tuned to be invisible to real use, harsh on scripts. */
-export const LIMITS = {
-  post: { limit: 5, windowSeconds: 60 },
-  vote: { limit: 30, windowSeconds: 60 },
-  like: { limit: 60, windowSeconds: 60 },
-} as const;
+/**
+ * Windows used only to populate Retry-After. The allowances themselves are
+ * defined inside check_rate_limit() in the database, deliberately not passed
+ * from here: the function is reachable over /rest/v1/rpc, so a caller that
+ * could supply its own limit could also widen it.
+ */
+const RETRY_AFTER_SECONDS = { post: 60, vote: 60, like: 60 } as const;
 
-export type RateLimitAction = keyof typeof LIMITS;
+export type RateLimitAction = keyof typeof RETRY_AFTER_SECONDS;
 
 /**
- * Count one action against a user's allowance.
+ * Count one action against the caller's allowance.
  *
- * Keyed by user id rather than IP: every rate-limited route already requires a
- * session, and an IP is both shared (mobile carriers, offices) and spoofable
- * through forwarded headers.
+ * The database derives the identity from auth.uid(), so this cannot be pointed
+ * at another account — an earlier version took the bucket as an argument, which
+ * let any signed-in user exhaust someone else's quota.
  *
  * Fails open. The counter lives in the same database as the write it guards, so
  * if it is unreachable the write cannot succeed either — refusing here would
- * turn a database blip into a confusing 429 instead of the real error. A missing
- * migration degrades the same way, which is why the deploy checklist calls it
- * out explicitly.
+ * turn a database blip into a confusing 429 instead of the real error.
  */
 export async function checkRateLimit(
   supabase: SupabaseServerClient,
-  userId: string,
   action: RateLimitAction
 ): Promise<{ allowed: boolean; retryAfter: number }> {
-  const { limit, windowSeconds } = LIMITS[action];
+  const windowSeconds = RETRY_AFTER_SECONDS[action];
 
   const { data, error } = await supabase.rpc("check_rate_limit", {
-    p_bucket: `${action}:${userId}`,
-    p_limit: limit,
-    p_window_seconds: windowSeconds,
+    p_action: action,
   });
 
   if (error) {

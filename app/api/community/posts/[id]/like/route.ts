@@ -17,7 +17,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { allowed, retryAfter } = await checkRateLimit(supabase, user.id, "like");
+    const { allowed, retryAfter } = await checkRateLimit(supabase, "like");
     if (!allowed) return tooManyRequests(retryAfter);
 
     // Check if already liked

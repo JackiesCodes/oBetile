@@ -128,11 +128,21 @@ Community writes are limited per user, per action:
 | Vote | 30 / minute |
 | Like | 60 / minute |
 
-Counters live in Postgres (`public.rate_limits`, migration `0006`), not process
-memory — the app runs on serverless functions, so an in-process counter would
-let a caller multiply their allowance by the number of warm instances. The table
-has RLS enabled with no policies: it is reachable only through the
+Counters live in Postgres (`public.rate_limits`, migrations `0006`/`0008`), not
+process memory — the app runs on serverless functions, so an in-process counter
+would let a caller multiply their allowance by the number of warm instances. The
+table has RLS enabled with no policies: it is reachable only through the
 security-definer `check_rate_limit()` function.
+
+`check_rate_limit(action)` takes only the action name. It derives the user from
+`auth.uid()` and holds the allowances itself, because it is reachable over
+`/rest/v1/rpc`: an earlier version accepted the bucket and limit as arguments,
+which let any signed-in user run up **another** account's counter and lock them
+out. Supabase's linter still reports `0029` against it — that warning fires for
+any security-definer function signed-in users can call. It is accepted here: the
+only thing a direct caller can now do is spend their own allowance, and the
+alternative (calling it with a `service_role` key) would put a far more
+privileged credential in the app.
 
 The check **fails open**. It shares a database with the write it guards, so if
 it is unreachable the write fails anyway, and refusing there would surface a
@@ -143,13 +153,16 @@ confusing 429 instead of the real error.
 1. **Resume the Supabase project** if it has auto-paused. A paused project takes
    down auth, profiles, community posts, votes and picks; the football data is
    unaffected because it comes from API-Football.
-2. **Apply migration `0006_rate_limits.sql`.** Until it is applied,
-   `check_rate_limit` does not exist, the check fails open, and community writes
-   are effectively unlimited.
+2. **Apply any unapplied migrations.** Until `check_rate_limit` exists the
+   limiter fails open and community writes are unlimited. After applying schema
+   changes, run `notify pgrst, 'reload schema';` — PostgREST caches the schema
+   and will otherwise report tables and relationships as missing.
 3. **Confirm `APIFOOTBALL_KEY` is set** in the Vercel project, for Production and
    Preview. New env vars need a redeploy to take effect.
-4. **Re-run the Supabase security advisors** once the project is live — they
+4. **Enable leaked-password protection** in Supabase Auth (checks signups
+   against HaveIBeenPwned). Currently off; it is a dashboard setting.
+5. **Re-run the Supabase security advisors** once the project is live — they
    return an empty result against a paused project, which is not the same as a
    clean result.
-5. **Check the API-Football subscription renewal date** via
+6. **Check the API-Football subscription renewal date** via
    `/api/football/status`.

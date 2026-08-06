@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { allowed, retryAfter } = await checkRateLimit(supabase, user.id, "vote");
+    const { allowed, retryAfter } = await checkRateLimit(supabase, "vote");
     if (!allowed) return tooManyRequests(retryAfter);
 
     const body = await req.json();
