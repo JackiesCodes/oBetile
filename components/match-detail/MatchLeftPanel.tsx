@@ -53,7 +53,11 @@ export default function MatchLeftPanel() {
   const h2hLast5 = h2h.slice(0, 5);
 
   return (
-    <aside className="flex flex-col overflow-y-auto h-full bg-brand-dark-2 border-r border-brand-dark-5">
+    // Width and breakpoint must mirror LeftSidebarDefault. Without them this
+    // panel rendered at every size with no fixed width, so on a phone the two
+    // match sidebars squeezed <main> — the match hub itself — down to nothing.
+    // Gated at xl because below that the match page's own tab bar covers this.
+    <aside className="w-56 shrink-0 hidden xl:flex flex-col overflow-y-auto h-full bg-brand-dark-2 border-r border-brand-dark-5">
       {/* Back button */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-brand-dark-5 bg-brand-dark-3">
         <span className="text-xs font-bold text-white truncate">

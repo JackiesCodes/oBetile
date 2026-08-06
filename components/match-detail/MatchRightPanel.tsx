@@ -68,7 +68,8 @@ export default function MatchRightPanel() {
   const highlightIds = [homeId, awayId];
 
   return (
-    <aside className="flex flex-col overflow-y-auto h-full bg-brand-dark-2 border-l border-brand-dark-5">
+    // Mirrors RightPanelDefault's width and breakpoint — see MatchLeftPanel.
+    <aside className="w-80 shrink-0 hidden xl:flex flex-col overflow-y-auto h-full bg-brand-dark-2 border-l border-brand-dark-5">
 
       {/* Key Stats */}
       <Section title="Key Statistics">
