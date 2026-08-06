@@ -79,9 +79,12 @@ export async function apiFetchRaw<T>(
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
 
+  // Tag the entry so a poisoned response can be dropped again below.
+  const tag = `apifootball:${path}:${url.searchParams.toString()}`;
+
   const res = await fetch(url.toString(), {
     headers: { "x-apisports-key": readKey() },
-    next: { revalidate },
+    next: { revalidate, tags: [tag] },
   });
 
   if (!res.ok) {
@@ -102,7 +105,27 @@ export async function apiFetchRaw<T>(
   }
 
   const json = await res.json();
-  assertNoApiError(json?.errors);
+
+  try {
+    assertNoApiError(json?.errors);
+  } catch (e) {
+    /*
+     * The upstream reports failure inside an HTTP 200, which Next's Data Cache
+     * has just stored as a perfectly good response. Left alone, a single
+     * transient blip — one burst over the per-minute allowance — is replayed
+     * for the whole revalidate window, so an hour-cached endpoint stays broken
+     * for an hour while the request never reaches API-Football again.
+     *
+     * Dropping the tag evicts that entry so the next caller retries.
+     */
+    // Imported lazily: this module is also pulled into client components via
+    // normalizeFixture, and next/cache is server-only. This branch only ever
+    // runs on the server, so the import is never reached in the browser.
+    // expire: 0 — evict now rather than schedule a future refresh.
+    const { revalidateTag } = await import("next/cache");
+    revalidateTag(tag, { expire: 0 });
+    throw e;
+  }
 
   return {
     response: (json?.response ?? []) as T,
