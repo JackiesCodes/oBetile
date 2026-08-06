@@ -92,3 +92,64 @@ hardcoded.
 
 Fixture queries by date pass no season at all — API-Football resolves the
 correct one per competition.
+
+## Security
+
+Set at the edge in `next.config.js`: Content-Security-Policy, HSTS,
+X-Frame-Options, X-Content-Type-Options, Referrer-Policy and Permissions-Policy.
+`X-Powered-By` is disabled.
+
+The CSP is strict — `default-src 'self'` with only three external origins
+allowed: `media.api-sports.io` for crests, `fonts.googleapis.com` /
+`fonts.gstatic.com` for the webfonts `app/globals.css` imports, and
+`*.supabase.co` for auth and community data. **Adding any third-party script,
+font or image host means adding it to the CSP**, or the browser silently drops
+it.
+
+`proxy.ts` refreshes the Supabase session on every request. Without it, access
+tokens expire mid-visit and Server Components begin treating a signed-in user as
+logged out.
+
+The auth callback only redirects to single-slash relative paths. `next` arrives
+from an email link and is attacker-controllable: `?next=@evil.com` would
+otherwise build `https://site/@evil.com`, which resolves to host `evil.com`.
+
+API routes never return Supabase error text or raw exceptions — those name
+tables, columns and constraints. Failures are logged server-side and callers get
+a generic message.
+
+### Rate limiting
+
+Community writes are limited per user, per action:
+
+| Action | Allowance |
+| --- | --- |
+| Post | 5 / minute |
+| Vote | 30 / minute |
+| Like | 60 / minute |
+
+Counters live in Postgres (`public.rate_limits`, migration `0006`), not process
+memory — the app runs on serverless functions, so an in-process counter would
+let a caller multiply their allowance by the number of warm instances. The table
+has RLS enabled with no policies: it is reachable only through the
+security-definer `check_rate_limit()` function.
+
+The check **fails open**. It shares a database with the write it guards, so if
+it is unreachable the write fails anyway, and refusing there would surface a
+confusing 429 instead of the real error.
+
+## Launch checklist
+
+1. **Resume the Supabase project** if it has auto-paused. A paused project takes
+   down auth, profiles, community posts, votes and picks; the football data is
+   unaffected because it comes from API-Football.
+2. **Apply migration `0006_rate_limits.sql`.** Until it is applied,
+   `check_rate_limit` does not exist, the check fails open, and community writes
+   are effectively unlimited.
+3. **Confirm `APIFOOTBALL_KEY` is set** in the Vercel project, for Production and
+   Preview. New env vars need a redeploy to take effect.
+4. **Re-run the Supabase security advisors** once the project is live — they
+   return an empty result against a paused project, which is not the same as a
+   clean result.
+5. **Check the API-Football subscription renewal date** via
+   `/api/football/status`.

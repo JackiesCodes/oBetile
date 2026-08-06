@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { serverErrorResponse } from "@/lib/api-error";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { sports } from "@/data/matches";
 
 const SPORT_IDS = new Set(sports.map((s) => s.id));
@@ -44,6 +45,9 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const { allowed, retryAfter } = await checkRateLimit(supabase, user.id, "post");
+    if (!allowed) return tooManyRequests(retryAfter);
 
     const body = await req.json();
     const content = String(body?.content ?? "").trim();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { serverErrorResponse } from "@/lib/api-error";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * Votes are counted straight out of these columns, so anything accepted here is
@@ -55,6 +56,9 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { allowed, retryAfter } = await checkRateLimit(supabase, user.id, "vote");
+    if (!allowed) return tooManyRequests(retryAfter);
 
     const body = await req.json();
     const fixture_id = parseFixtureId(body?.fixture_id);

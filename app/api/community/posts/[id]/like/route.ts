@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { serverErrorResponse } from "@/lib/api-error";
+import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(
   _req: NextRequest,
@@ -15,6 +16,9 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const { allowed, retryAfter } = await checkRateLimit(supabase, user.id, "like");
+    if (!allowed) return tooManyRequests(retryAfter);
 
     // Check if already liked
     const { data: existing } = await supabase
