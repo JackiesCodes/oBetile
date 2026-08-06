@@ -159,8 +159,13 @@ confusing 429 instead of the real error.
    and will otherwise report tables and relationships as missing.
 3. **Confirm `APIFOOTBALL_KEY` is set** in the Vercel project, for Production and
    Preview. New env vars need a redeploy to take effect.
-4. **Enable leaked-password protection** in Supabase Auth (checks signups
-   against HaveIBeenPwned). Currently off; it is a dashboard setting.
+4. **Password policy** lives under **Authentication → Sign In / Providers →
+   Email** (`/dashboard/project/_/auth/providers?provider=Email`) — not under
+   Policies. Minimum length 8 and the strongest character requirements are set.
+   `lib/password.ts` mirrors those rules client-side so users see what is wrong
+   before submitting instead of the raw provider error; **change both together**.
+   Leaked-password protection (HaveIBeenPwned) sits on the same page but
+   requires the Pro plan.
 5. **Re-run the Supabase security advisors** once the project is live — they
    return an empty result against a paused project, which is not the same as a
    clean result.

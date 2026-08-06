@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { PASSWORD_HINT, describePasswordProblems } from "@/lib/password";
 import clsx from "clsx";
 
 type Mode = "login" | "signup" | "forgot";
@@ -40,6 +41,18 @@ export default function AuthModal() {
       if (err) setError(err);
       else setSuccess(true);
       return;
+    }
+
+    // Checked before the request on signup only: the rules apply to new
+    // passwords, and running them at login would lock out anyone whose existing
+    // password predates the current policy.
+    if (currentMode === "signup") {
+      const problem = describePasswordProblems(password);
+      if (problem) {
+        setError(problem);
+        setLoading(false);
+        return;
+      }
     }
 
     const fn = currentMode === "login" ? signIn : signUp;
@@ -198,6 +211,9 @@ export default function AuthModal() {
                         {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
+                    {authModalTab === "signup" && (
+                      <p className="text-[11px] text-gray-500 mt-1.5">{PASSWORD_HINT}</p>
+                    )}
                   </div>
 
                   {error && (

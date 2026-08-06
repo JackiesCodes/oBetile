@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
+import { PASSWORD_HINT, describePasswordProblems } from "@/lib/password";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -27,7 +28,10 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
     if (password !== confirm) { setError("Passwords don't match."); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    // Was a bare 6-character check, which no longer matches what Supabase
+    // accepts — the request failed server-side with a raw provider message.
+    const problem = describePasswordProblems(password);
+    if (problem) { setError(problem); return; }
 
     setLoading(true);
     const supabase = createClient();
@@ -109,6 +113,7 @@ export default function ResetPasswordPage() {
                     {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">{PASSWORD_HINT}</p>
               </div>
 
               <div>
