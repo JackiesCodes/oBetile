@@ -35,10 +35,17 @@ const MATCH_WINNER_BET = "1";
  * Odds move, but not minute to minute for our purposes, and every page costs a
  * request. Ten minutes keeps a busy homepage to a handful of calls an hour.
  */
-const ODDS_TTL = 600;
+const ODDS_TTL = 900;
 
-/** Guards against a pathological day consuming the burst allowance. */
-const MAX_PAGES = 3;
+/**
+ * /odds returns ten fixtures a page, and a normal day runs to about twenty-two
+ * pages. Three covered barely a seventh of them, so most rows showed a dash
+ * even where a price existed. Pages are fetched one at a time, so this is a
+ * ceiling on total requests rather than on burst size, and the fifteen-minute
+ * cache keeps a full sweep to roughly ninety requests an hour at worst against
+ * a 7,500/day allowance.
+ */
+const MAX_PAGES = 25;
 
 function readOneXTwo(entry: APIOddsEntry): OneXTwo | null {
   // Any bookmaker will do — they are taken only as a probability estimate, and

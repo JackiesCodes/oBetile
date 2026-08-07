@@ -19,7 +19,9 @@ export default function OddsButton({ match, market, label }: Props) {
 
   if (odds === null) {
     return (
-      <div className="w-16 h-14 flex items-center justify-center bg-brand-dark-4 rounded text-gray-600 text-xs">
+      // Same footprint as the real button so rows stay aligned whether or not
+      // a fixture is priced.
+      <div className="w-[3.1rem] h-12 sm:w-16 sm:h-14 flex items-center justify-center bg-brand-dark-4 rounded text-gray-600 text-xs shrink-0">
         —
       </div>
     );
@@ -49,7 +51,9 @@ export default function OddsButton({ match, market, label }: Props) {
     <button
       onClick={handleClick}
       className={clsx(
-        "relative w-16 h-14 flex flex-col items-center justify-center rounded text-xs font-semibold transition-all border overflow-hidden",
+        // Narrower on phones: three of these plus the kick-off time otherwise
+        // leave no room for the team names on a 390px screen.
+        "relative w-[3.1rem] h-12 sm:w-16 sm:h-14 shrink-0 flex flex-col items-center justify-center rounded text-xs font-semibold transition-all border overflow-hidden",
         selected
           ? "bg-brand-green text-black border-brand-green shadow-[0_0_8px_rgba(0,185,9,0.4)]"
           : "bg-brand-dark-4 text-white border-transparent hover:border-brand-green"

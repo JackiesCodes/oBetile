@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Match } from "@/types";
 import { ChevronRight } from "lucide-react";
+import OddsButton from "./OddsButton";
 import clsx from "clsx";
 
 interface VoteCounts {
@@ -54,10 +55,11 @@ export default function MatchRow({ match, votes }: Props) {
 
   return (
     <div className="border-b border-brand-dark-5">
-      <Link
-        href={`/match/${match.id}`}
-        className="flex items-center gap-2 px-3 py-3.5 hover:bg-brand-dark-3 transition-colors group cursor-pointer"
-      >
+      <div className="flex items-center gap-2 px-3 py-3.5 hover:bg-brand-dark-3 transition-colors group">
+        <Link
+          href={`/match/${match.id}`}
+          className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+        >
         {/* Time / Live indicator */}
         <div className="w-14 shrink-0 text-center">
           {isLive ? (
@@ -100,8 +102,24 @@ export default function MatchRow({ match, votes }: Props) {
           </div>
         </div>
 
-        <ChevronRight size={15} className="text-gray-600 group-hover:text-brand-green transition-colors shrink-0" />
-      </Link>
+        </Link>
+
+        {/* Win percentages — outside the Link so tapping one records a pick
+            rather than navigating to the match. */}
+        <div className="flex items-center gap-1 shrink-0">
+          <OddsButton match={match} market="home" label="Home" />
+          <OddsButton match={match} market="draw" label="Draw" />
+          <OddsButton match={match} market="away" label="Away" />
+        </div>
+
+        <Link
+          href={`/match/${match.id}`}
+          aria-label={`${match.home} versus ${match.away} details`}
+          className="shrink-0"
+        >
+          <ChevronRight size={15} className="text-gray-600 group-hover:text-brand-green transition-colors" />
+        </Link>
+      </div>
 
       {/* Vote chips — outside the Link so clicking doesn't navigate */}
       {votes && (

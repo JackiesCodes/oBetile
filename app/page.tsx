@@ -75,23 +75,30 @@ export default function HomePage() {
         // No season param — API-Football resolves the correct season per competition automatically when querying by date.
         // Passing season=2025 would break calendar-year leagues (MLS, Brazil, etc.) whose 2026 season ≠ 2025.
         const qp = new URLSearchParams({ ...dateParams });
-        const [fixturesData, liveData, oddsData] = await Promise.all([
+        const [fixturesData, liveData] = await Promise.all([
           fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []),
           fetch("/api/football/live").then((r) => r.json()).catch(() => []),
-          // Only a single day can be priced in one request, so the week view
-          // goes without rather than making seven calls.
-          dateParams.date
-            ? fetch(`/api/football/odds?date=${dateParams.date}`).then((r) => r.json()).catch(() => ({}))
-            : Promise.resolve({}),
         ]);
 
         if (!cancelled) {
-          const odds = (oddsData && typeof oddsData === "object" ? oddsData : {}) as OddsMap;
-          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : [])
-            .map(normalizeFixture)
-            .map((m) => withOdds(m, odds));
+          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture);
           setMatches(dedupe(all));
           setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
+        }
+
+        // Deliberately not awaited alongside the fixtures. A full day of prices
+        // is around twenty upstream pages, and blocking on that would hold the
+        // match list back by seconds; percentages fill in when they arrive.
+        // Only a single day can be priced, so the week view goes without.
+        if (dateParams.date) {
+          fetch(`/api/football/odds?date=${dateParams.date}`)
+            .then((r) => r.json())
+            .then((oddsData) => {
+              if (cancelled || !oddsData || typeof oddsData !== "object") return;
+              const odds = oddsData as OddsMap;
+              setMatches((prev) => prev.map((m) => withOdds(m, odds)));
+            })
+            .catch(() => {});
         }
       } catch {
         // silently fail

@@ -58,20 +58,22 @@ export default function SoccerPage() {
       try {
         const dateParams = getDateParams(activeDate);
         const qp = new URLSearchParams({ ...dateParams }); // no season — let API resolve per competition
-        const [fixturesData, oddsData] = await Promise.all([
-          fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []),
-          // Priced a day at a time; the week view omits odds rather than
-          // making one request per day.
-          dateParams.date
-            ? fetch(`/api/football/odds?date=${dateParams.date}`).then((r) => r.json()).catch(() => ({}))
-            : Promise.resolve({}),
-        ]);
+        const fixturesData = await fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []);
         if (!cancelled) {
-          const odds = (oddsData && typeof oddsData === "object" ? oddsData : {}) as OddsMap;
-          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : [])
-            .map(normalizeFixture)
-            .map((m) => withOdds(m, odds));
+          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture);
           setMatches(dedupe(all));
+        }
+
+        // Loaded after the list rather than with it — see the homepage for why.
+        if (dateParams.date) {
+          fetch(`/api/football/odds?date=${dateParams.date}`)
+            .then((r) => r.json())
+            .then((oddsData) => {
+              if (cancelled || !oddsData || typeof oddsData !== "object") return;
+              const odds = oddsData as OddsMap;
+              setMatches((prev) => prev.map((m) => withOdds(m, odds)));
+            })
+            .catch(() => {});
         }
       } catch {
         // silently fail
