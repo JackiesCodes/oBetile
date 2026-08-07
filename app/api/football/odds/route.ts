@@ -104,7 +104,15 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(result, {
-      headers: { "Cache-Control": `s-maxage=${ODDS_TTL}, stale-while-revalidate=120` },
+      headers: {
+        "Cache-Control": `s-maxage=${ODDS_TTL}, stale-while-revalidate=120`,
+        // Coverage diagnostics: /odds paginates ~10 fixtures per page, so if
+        // pages-available exceeds pages-fetched the day is being truncated and
+        // most rows will show no percentage.
+        "x-odds-pages-fetched": String(Math.min(totalPages, MAX_PAGES)),
+        "x-odds-pages-available": String(totalPages),
+        "x-odds-fixtures": String(Object.keys(result).length),
+      },
     });
   } catch (e) {
     return apiErrorResponse(e);
