@@ -1,6 +1,6 @@
 "use client";
 
-import { usePredictions } from "@/context/BetSlipContext";
+import { usePredictions } from "@/context/PredictionContext";
 import { oddsToPercent } from "@/lib/utils";
 import { Match } from "@/types";
 import clsx from "clsx";
@@ -12,10 +12,10 @@ interface Props {
 }
 
 export default function OddsButton({ match, market, label }: Props) {
-  const { addBet, removeBet, hasBet } = usePredictions();
+  const { addPrediction, removePrediction, hasPrediction } = usePredictions();
   const odds = match.odds[market];
   const marketKey = `1x2-${market}`;
-  const selected = hasBet(match.id, marketKey);
+  const selected = hasPrediction(match.id, marketKey);
 
   if (odds === null) {
     return (
@@ -34,9 +34,9 @@ export default function OddsButton({ match, market, label }: Props) {
 
   const handleClick = () => {
     if (selected) {
-      removeBet(match.id, marketKey);
+      removePrediction(match.id, marketKey);
     } else {
-      addBet({
+      addPrediction({
         matchId: match.id,
         home: match.home,
         away: match.away,

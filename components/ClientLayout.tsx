@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PredictionProvider } from "@/context/BetSlipContext";
+import { PredictionProvider } from "@/context/PredictionContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { FavouritesProvider } from "@/context/FavouritesContext";
 import { MatchDetailProvider } from "@/context/MatchDetailContext";

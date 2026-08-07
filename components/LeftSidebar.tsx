@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Trophy, Zap, Calendar, X, Trash2, ChevronDown, ChevronUp, Star } from "lucide-react";
 import clsx from "clsx";
-import { usePredictions } from "@/context/BetSlipContext";
+import { usePredictions } from "@/context/PredictionContext";
 import { useAuth } from "@/context/AuthContext";
 import { useFavourites } from "@/context/FavouritesContext";
 import { useMatchDetail } from "@/context/MatchDetailContext";
@@ -33,7 +33,7 @@ export default function LeftSidebar() {
 
 function LeftSidebarDefault() {
   const pathname = usePathname();
-  const { items, removeBet, clearAll } = usePredictions();
+  const { items, removePrediction, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
   const { favourites } = useFavourites();
   const [topLeaguesOpen, setTopLeaguesOpen] = useState(false);
@@ -185,7 +185,7 @@ function LeftSidebarDefault() {
                   <div className="text-[9px] text-gray-500 truncate">{item.home} v {item.away}</div>
                 </div>
                 <button
-                  onClick={() => removeBet(item.matchId, item.market)}
+                  onClick={() => removePrediction(item.matchId, item.market)}
                   className="text-gray-600 hover:text-red-400 transition-colors shrink-0 mt-0.5"
                 >
                   <X size={11} />

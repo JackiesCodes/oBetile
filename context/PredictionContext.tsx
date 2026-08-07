@@ -7,10 +7,10 @@ import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 
 interface PredictionContextType {
   items: PredictionItem[];
-  addBet: (item: PredictionItem) => void;
-  removeBet: (matchId: string, market: string) => void;
+  addPrediction: (item: PredictionItem) => void;
+  removePrediction: (matchId: string, market: string) => void;
   clearAll: () => void;
-  hasBet: (matchId: string, market: string) => boolean;
+  hasPrediction: (matchId: string, market: string) => boolean;
 }
 
 const PredictionContext = createContext<PredictionContextType | undefined>(undefined);
@@ -55,7 +55,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
     if (!user) setItems([]);
   }, [user]);
 
-  const addBet = (item: PredictionItem) => {
+  const addPrediction = (item: PredictionItem) => {
     setItems((prev) => {
       const exists = prev.find((b) => b.matchId === item.matchId && b.market === item.market);
       if (exists) {
@@ -83,7 +83,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const removeBet = (matchId: string, market: string) => {
+  const removePrediction = (matchId: string, market: string) => {
     setItems((prev) => prev.filter((b) => !(b.matchId === matchId && b.market === market)));
 
     if (user && hasSupabaseConfig()) {
@@ -105,11 +105,11 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const hasBet = (matchId: string, market: string) =>
+  const hasPrediction = (matchId: string, market: string) =>
     items.some((b) => b.matchId === matchId && b.market === market);
 
   return (
-    <PredictionContext.Provider value={{ items, addBet, removeBet, clearAll, hasBet }}>
+    <PredictionContext.Provider value={{ items, addPrediction, removePrediction, clearAll, hasPrediction }}>
       {children}
     </PredictionContext.Provider>
   );

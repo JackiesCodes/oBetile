@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Search, Menu, X, Bell, LogOut, User } from "lucide-react";
-import { usePredictions } from "@/context/BetSlipContext";
+import { usePredictions } from "@/context/PredictionContext";
 import { useAuth } from "@/context/AuthContext";
 import NotificationsPanel from "@/components/NotificationsPanel";
 

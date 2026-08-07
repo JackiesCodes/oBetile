@@ -1,6 +1,6 @@
 "use client";
 
-import { usePredictions } from "@/context/BetSlipContext";
+import { usePredictions } from "@/context/PredictionContext";
 import { X, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import clsx from "clsx";
@@ -21,8 +21,8 @@ const PICK_COLOR: Record<string, string> = { home: "text-brand-green", draw: "te
 
 type Tab = "picks" | "history";
 
-export default function BetSlip() {
-  const { items, removeBet, clearAll } = usePredictions();
+export default function PredictionSlip() {
+  const { items, removePrediction, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
   const [tab, setTab] = useState<Tab>("picks");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -111,7 +111,7 @@ export default function BetSlip() {
                       {Math.round((1 / item.odds) * 100)}%
                     </span>
                     <button
-                      onClick={() => removeBet(item.matchId, item.market)}
+                      onClick={() => removePrediction(item.matchId, item.market)}
                       className="text-gray-600 hover:text-red-400 transition-colors"
                     >
                       <X size={14} />
