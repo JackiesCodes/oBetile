@@ -21,6 +21,8 @@ export interface ApiEnvelope<T> {
   response: T;
   rateLimit: RateLimit;
   resultCount: number;
+  /** Endpoints like /odds return large result sets a page at a time. */
+  paging: { current: number; total: number };
 }
 
 function readKey(): string {
@@ -130,6 +132,10 @@ export async function apiFetchRaw<T>(
   return {
     response: (json?.response ?? []) as T,
     resultCount: typeof json?.results === "number" ? json.results : 0,
+    paging: {
+      current: Number(json?.paging?.current) || 1,
+      total: Number(json?.paging?.total) || 1,
+    },
     rateLimit: {
       dayLimit: num(res.headers.get("x-ratelimit-requests-limit")),
       dayRemaining: num(res.headers.get("x-ratelimit-requests-remaining")),
