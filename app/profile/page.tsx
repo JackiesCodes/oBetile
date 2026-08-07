@@ -40,6 +40,28 @@ export default function ProfilePage() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  /**
+   * Permanent account deletion. Removing the auth user cascades to the
+   * profile, picks, favourites, votes, posts and likes, so one call clears
+   * everything the privacy policy says it clears.
+   */
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    setDeleteError(null);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("delete_own_account");
+    if (error) {
+      setDeleting(false);
+      setDeleteError("Could not delete your account. Please try again or contact support.");
+      return;
+    }
+    await supabase.auth.signOut();
+    router.push("/");
+  }
 
   // Redirect if not logged in
   useEffect(() => {
@@ -195,6 +217,48 @@ export default function ProfilePage() {
                   </p>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Account deletion — the privacy policy promises this, so it has to work */}
+        <div className="bg-brand-dark-2 rounded-xl border border-red-500/20 p-4">
+          <h2 className="text-sm font-bold text-white mb-1">Delete account</h2>
+          <p className="text-[11px] text-gray-500 leading-relaxed mb-3">
+            Permanently removes your account, profile, saved predictions, favourites, votes,
+            posts and likes. This cannot be undone and we keep no copy.
+          </p>
+
+          {deleteError && (
+            <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded px-3 py-2 mb-3">
+              {deleteError}
+            </p>
+          )}
+
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-xs font-semibold text-red-400 border border-red-400/40 rounded-lg px-3 py-2 hover:bg-red-400/10 transition-colors"
+            >
+              Delete my account
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-300">Are you sure?</span>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="text-xs font-bold bg-red-500 text-white rounded-lg px-3 py-2 hover:bg-red-600 transition-colors disabled:opacity-60"
+              >
+                {deleting ? "Deleting…" : "Yes, delete everything"}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="text-xs font-semibold text-gray-400 px-3 py-2 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           )}
         </div>

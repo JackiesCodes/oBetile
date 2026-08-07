@@ -11,6 +11,7 @@ import LeftSidebar from "@/components/LeftSidebar";
 import RightPanel from "@/components/RightPanel";
 import AuthModal from "@/components/AuthModal";
 import SearchModal from "@/components/SearchModal";
+import Footer from "@/components/Footer";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -28,6 +29,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <LeftSidebar />
           <main className="flex-1 overflow-y-auto bg-brand-dark">
             {children}
+            <Footer />
           </main>
           <RightPanel />
         </div>

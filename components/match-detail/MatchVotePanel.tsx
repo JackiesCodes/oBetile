@@ -88,7 +88,7 @@ const PREMIUM_MARKETS: MarketConfig[] = [
   {
     id: "asian_handicap",
     label: "Asian Handicap",
-    description: "Handicap betting market",
+    description: "Handicap market — one side given a virtual head start",
     premium: true,
     choices: [
       { id: "home", label: "Home -0.5" },
