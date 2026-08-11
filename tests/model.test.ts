@@ -7,6 +7,7 @@ import {
   leagueAverages,
   expectedGoals,
   applyHeadToHead,
+  applyTemperature,
   lowScoreAdjustment,
   predictFixture,
   toPercentages,
@@ -328,5 +329,53 @@ describe("normalise", () => {
   it("falls back to even thirds rather than dividing by zero", () => {
     const p = normalise({ home: 0, draw: 0, away: 0 });
     expect(p.home + p.draw + p.away).toBeCloseTo(1, 10);
+  });
+});
+
+describe("applyTemperature", () => {
+  const sharp = { home: 0.75, draw: 0.18, away: 0.07 };
+
+  it("reduces confidence in the leading outcome", () => {
+    const out = applyTemperature(sharp, 1.25);
+    expect(out.home).toBeLessThan(sharp.home);
+    expect(out.away).toBeGreaterThan(sharp.away);
+  });
+
+  it("keeps the ordering intact", () => {
+    const out = applyTemperature(sharp, 1.25);
+    expect(out.home).toBeGreaterThan(out.draw);
+    expect(out.draw).toBeGreaterThan(out.away);
+  });
+
+  it("still sums to one", () => {
+    for (const t of [1.1, 1.25, 2]) {
+      const out = applyTemperature(sharp, t);
+      expect(out.home + out.draw + out.away).toBeCloseTo(1, 10);
+    }
+  });
+
+  it("does nothing at T=1", () => {
+    expect(applyTemperature(sharp, 1)).toEqual(sharp);
+  });
+
+  it("leaves an already-even forecast alone", () => {
+    const even = { home: 1 / 3, draw: 1 / 3, away: 1 / 3 };
+    const out = applyTemperature(even, 1.25);
+    expect(out.home).toBeCloseTo(1 / 3, 10);
+  });
+
+  it("is applied by predictFixture, not just available to it", () => {
+    // Guards against the tempering being defined but never wired in — the
+    // backtested calibration only holds if every published number goes
+    // through it.
+    const strong = team(1, { home: { played: 11, goalsFor: 26, goalsAgainst: 5 } });
+    const weak = team(2, { away: { played: 11, goalsFor: 5, goalsAgainst: 24 } });
+    const p = predictFixture({ home: strong, away: weak, table: flatTable })!;
+
+    const untempered = applyTemperature(p, 1);
+    expect(p.home).toBeLessThan(0.9);
+    // Re-tempering an already-tempered figure must move it further, proving
+    // the value returned was not the raw one.
+    expect(applyTemperature(untempered, 1.25).home).toBeLessThan(p.home);
   });
 });

@@ -279,6 +279,35 @@ export function applyHeadToHead(p: Probabilities, h2h: HeadToHead | null): Proba
   });
 }
 
+/**
+ * How much to flatten the raw output before publishing it.
+ *
+ * A Poisson model is sharper than the game it describes: backtested over six
+ * league seasons, fixtures it called at 70-80% came in 63% of the time, and
+ * 80%+ came in 76%. Raising probabilities to the power 1/T and renormalising
+ * pulls the confident end back without disturbing the ordering.
+ *
+ * T was fitted on the Premier League, La Liga and Serie A, then checked against
+ * the Bundesliga, Ligue 1 and the Brasileirão — seasons it had never seen. On
+ * those, every probability band came out within about two points of its true
+ * rate. See scripts/backtest.ts.
+ */
+const CONFIDENCE_TEMPERATURE = 1.25;
+
+/**
+ * Flatten a distribution toward even without changing which outcome leads.
+ *
+ * Exported so the backtest can measure the model with and without it.
+ */
+export function applyTemperature(p: Probabilities, t = CONFIDENCE_TEMPERATURE): Probabilities {
+  if (t === 1) return p;
+  return normalise({
+    home: Math.pow(Math.max(0, p.home), 1 / t),
+    draw: Math.pow(Math.max(0, p.draw), 1 / t),
+    away: Math.pow(Math.max(0, p.away), 1 / t),
+  });
+}
+
 export interface PredictionInput {
   home: TeamRecord;
   away: TeamRecord;
@@ -306,7 +335,11 @@ export function predictFixture({ home, away, table, h2h }: PredictionInput): Pro
     away: applyForm(lambdas.away, away.form),
   };
 
-  return applyHeadToHead(outcomeProbabilities(adjusted.home, adjusted.away), h2h ?? null);
+  const raw = applyHeadToHead(outcomeProbabilities(adjusted.home, adjusted.away), h2h ?? null);
+
+  // Last step before anyone sees a number: the model is measurably more
+  // confident than it has earned, so temper it.
+  return applyTemperature(raw);
 }
 
 /** Percentages rounded to whole numbers that still total exactly 100. */
