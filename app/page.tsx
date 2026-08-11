@@ -37,8 +37,8 @@ function getDateParams(activeDate: string): Record<string, string> {
 }
 
 /**
- * Bookmakers price only a minority of fixtures, so after odds land we ask
- * API-Football's own model for the ones still without a percentage.
+ * Bookmakers price only a minority of fixtures, so after odds land the gaps are
+ * filled from two further sources in turn.
  *
  * Bounded deliberately: /predictions has no bulk form, so each fixture is its
  * own upstream request. Filling a whole day would be hundreds of calls, so this
@@ -58,11 +58,32 @@ async function fillMissingOdds(
 
   if (missing.length === 0) return;
 
+  // Two sources, cheapest first. The provider's own forecast is one request per
+  // fixture but needs no other data; our model costs one call per competition
+  // and answers for anything with a published table, including matches the
+  // provider knows nothing about.
+  const filled = new Set<string>();
+
+  const merge = (data: unknown) => {
+    if (!data || typeof data !== "object") return;
+    const map = data as OddsMap;
+    for (const id of Object.keys(map)) filled.add(id);
+    apply(map);
+  };
+
   try {
     const res = await fetch(`/api/football/forecasts?ids=${missing.join(",")}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data && typeof data === "object") apply(data as OddsMap);
+    if (res.ok) merge(await res.json());
+  } catch {
+    // Fall through to the model.
+  }
+
+  const stillMissing = missing.filter((id) => !filled.has(id));
+  if (stillMissing.length === 0) return;
+
+  try {
+    const res = await fetch(`/api/football/model?ids=${stillMissing.join(",")}`);
+    if (res.ok) merge(await res.json());
   } catch {
     // A failed fill just leaves those rows with a dash.
   }

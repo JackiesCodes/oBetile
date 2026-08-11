@@ -1,5 +1,4 @@
 import { defineConfig } from "vitest/config";
-import path from "node:path";
 
 export default defineConfig({
   test: {
@@ -9,6 +8,6 @@ export default defineConfig({
   resolve: {
     // Mirrors the "@/*" path alias in tsconfig so tests import modules exactly
     // as the application does.
-    alias: { "@": path.resolve(__dirname, ".") },
+    alias: { "@": import.meta.dirname },
   },
 });
