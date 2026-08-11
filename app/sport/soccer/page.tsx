@@ -9,6 +9,38 @@ import { normalizeFixture } from "@/lib/api-football";
 import { withOdds, type OddsMap } from "@/lib/odds";
 import { Zap } from "lucide-react";
 
+/**
+ * Bookmakers price only a minority of fixtures, so after odds land we ask
+ * API-Football's own model for the ones still without a percentage.
+ *
+ * Bounded deliberately: /predictions has no bulk form, so each fixture is its
+ * own upstream request. Filling a whole day would be hundreds of calls, so this
+ * covers the top of the feed — what a visitor actually sees first — and leaves
+ * the rest showing a dash.
+ */
+const FORECAST_FILL_LIMIT = 20;
+
+async function fillMissingOdds(
+  matches: Match[],
+  apply: (map: OddsMap) => void
+): Promise<void> {
+  const missing = matches
+    .filter((m) => m.odds.home === null)
+    .slice(0, FORECAST_FILL_LIMIT)
+    .map((m) => m.id);
+
+  if (missing.length === 0) return;
+
+  try {
+    const res = await fetch(`/api/football/forecasts?ids=${missing.join(",")}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && typeof data === "object") apply(data as OddsMap);
+  } catch {
+    // A failed fill just leaves those rows with a dash.
+  }
+}
+
 const STATUS_MAP: Record<string, Match["status"]> = {
   Live: "live",
   Upcoming: "upcoming",
@@ -59,10 +91,11 @@ export default function SoccerPage() {
         const dateParams = getDateParams(activeDate);
         const qp = new URLSearchParams({ ...dateParams }); // no season — let API resolve per competition
         const fixturesData = await fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []);
-        if (!cancelled) {
-          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture);
-          setMatches(dedupe(all));
-        }
+        const deduped = dedupe(
+          (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture)
+        );
+
+        if (!cancelled) setMatches(deduped);
 
         // Loaded after the list rather than with it — see the homepage for why.
         if (dateParams.date) {
@@ -71,7 +104,14 @@ export default function SoccerPage() {
             .then((oddsData) => {
               if (cancelled || !oddsData || typeof oddsData !== "object") return;
               const odds = oddsData as OddsMap;
-              setMatches((prev) => prev.map((m) => withOdds(m, odds)));
+              const merged = deduped.map((m) => withOdds(m, odds));
+              setMatches(merged);
+
+              // Outside the state updater — see the homepage: a fetch inside one
+              // fires twice under reactStrictMode.
+              fillMissingOdds(merged, (extra) => {
+                if (!cancelled) setMatches((cur) => cur.map((m) => withOdds(m, extra)));
+              });
             })
             .catch(() => {});
         }

@@ -36,6 +36,38 @@ function getDateParams(activeDate: string): Record<string, string> {
   return { date: d.toISOString().split("T")[0] };
 }
 
+/**
+ * Bookmakers price only a minority of fixtures, so after odds land we ask
+ * API-Football's own model for the ones still without a percentage.
+ *
+ * Bounded deliberately: /predictions has no bulk form, so each fixture is its
+ * own upstream request. Filling a whole day would be hundreds of calls, so this
+ * covers the top of the feed — what a visitor actually sees first — and leaves
+ * the rest showing a dash.
+ */
+const FORECAST_FILL_LIMIT = 20;
+
+async function fillMissingOdds(
+  matches: Match[],
+  apply: (map: OddsMap) => void
+): Promise<void> {
+  const missing = matches
+    .filter((m) => m.odds.home === null)
+    .slice(0, FORECAST_FILL_LIMIT)
+    .map((m) => m.id);
+
+  if (missing.length === 0) return;
+
+  try {
+    const res = await fetch(`/api/football/forecasts?ids=${missing.join(",")}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && typeof data === "object") apply(data as OddsMap);
+  } catch {
+    // A failed fill just leaves those rows with a dash.
+  }
+}
+
 const STATUS_MAP: Record<string, Match["status"]> = {
   Live: "live",
   Upcoming: "upcoming",
@@ -80,9 +112,12 @@ export default function HomePage() {
           fetch("/api/football/live").then((r) => r.json()).catch(() => []),
         ]);
 
+        const deduped = dedupe(
+          (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture)
+        );
+
         if (!cancelled) {
-          const all = (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture);
-          setMatches(dedupe(all));
+          setMatches(deduped);
           setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
         }
 
@@ -96,7 +131,15 @@ export default function HomePage() {
             .then((oddsData) => {
               if (cancelled || !oddsData || typeof oddsData !== "object") return;
               const odds = oddsData as OddsMap;
-              setMatches((prev) => prev.map((m) => withOdds(m, odds)));
+              const merged = deduped.map((m) => withOdds(m, odds));
+              setMatches(merged);
+
+              // Computed outside the state updater on purpose: updaters must be
+              // pure, and with reactStrictMode on, one containing a fetch would
+              // fire it twice.
+              fillMissingOdds(merged, (extra) => {
+                if (!cancelled) setMatches((cur) => cur.map((m) => withOdds(m, extra)));
+              });
             })
             .catch(() => {});
         }

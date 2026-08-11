@@ -49,6 +49,26 @@ export function deVig(odds: OneXTwo): OneXTwo | null {
   };
 }
 
+/**
+ * Turn three probabilities into fair decimal odds summing to 100%.
+ *
+ * Model forecasts arrive as percentages rather than prices. They are supposed
+ * to total 100 but do not always, so they are rescaled the same way a
+ * bookmaker's margin is removed — leaving one representation, decimal odds,
+ * for every source the UI displays.
+ */
+export function normaliseToFairOdds(percents: OneXTwo): OneXTwo | null {
+  const total = percents.home + percents.draw + percents.away;
+  if (!Number.isFinite(total) || total <= 0) return null;
+  if (percents.home <= 0 || percents.draw <= 0 || percents.away <= 0) return null;
+
+  return {
+    home: total / percents.home,
+    draw: total / percents.draw,
+    away: total / percents.away,
+  };
+}
+
 /** Fixture id -> fair 1X2 odds, as returned by /api/football/odds. */
 export type OddsMap = Record<string, OneXTwo>;
 
