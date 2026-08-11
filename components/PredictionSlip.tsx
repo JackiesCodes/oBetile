@@ -1,50 +1,26 @@
 "use client";
 
 import { usePredictions } from "@/context/PredictionContext";
-import { X, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { X, Trash2, Check } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
 import clsx from "clsx";
 import { useAuth } from "@/context/AuthContext";
-import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
-
-interface HistoryPick {
-  id: string;
-  fixture_id: number;
-  home_team: string;
-  away_team: string;
-  pick: "home" | "draw" | "away";
-  created_at: string;
-}
-
-const PICK_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away" };
-const PICK_COLOR: Record<string, string> = { home: "text-brand-green", draw: "text-gray-400", away: "text-red-400" };
 
 type Tab = "picks" | "history";
 
 export default function PredictionSlip() {
-  const { items, removePrediction, clearAll } = usePredictions();
+  const { items, history, historyLoading, removePrediction, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
   const [tab, setTab] = useState<Tab>("picks");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [history, setHistory] = useState<HistoryPick[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
 
-  useEffect(() => {
-    if (!user || !hasSupabaseConfig()) { setHistory([]); return; }
-    if (tab !== "history") return;
-    setHistoryLoading(true);
-    const supabase = createClient();
-    supabase
-      .from("user_picks")
-      .select("id, fixture_id, home_team, away_team, pick, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        setHistory((data as HistoryPick[]) ?? []);
-        setHistoryLoading(false);
-      });
-  }, [user, tab]);
+  // Tapping a pick navigates, so the mobile drawer must not stay open over the
+  // page it just opened.
+  const closeDrawer = () => setDrawerOpen(false);
+
+  const correctCount = history.filter((h) => h.correct).length;
+
 
   const tabBar = (
     <div className="flex border-b border-brand-dark-5 shrink-0">
@@ -84,7 +60,8 @@ export default function PredictionSlip() {
             <span className="text-3xl">🔮</span>
           </div>
           <p className="text-gray-400 text-sm">
-            Click any match outcome to add a pick.
+            Tap any win percentage to add a pick. Picks stay here until the
+            match finishes, then move to Pick History with the result.
           </p>
         </div>
       ) : (
@@ -94,10 +71,16 @@ export default function PredictionSlip() {
             {items.map((item) => (
               <div
                 key={`${item.matchId}-${item.market}`}
-                className="bg-brand-dark-3 rounded-lg p-3 border border-brand-dark-5"
+                className="bg-brand-dark-3 rounded-lg border border-brand-dark-5 hover:border-brand-green/40 transition-colors"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 p-3">
+                  {/* The card body navigates; the remove button sits outside the
+                      link so tapping it does not open the match. */}
+                  <Link
+                    href={`/match/${item.matchId}`}
+                    onClick={closeDrawer}
+                    className="flex-1 min-w-0"
+                  >
                     <div className="text-xs text-brand-green font-semibold truncate">
                       {item.selection}
                     </div>
@@ -105,13 +88,14 @@ export default function PredictionSlip() {
                       {item.home} vs {item.away}
                     </div>
                     <div className="text-[11px] text-gray-500">Match Result</div>
-                  </div>
+                  </Link>
                   <div className="flex items-start gap-2 shrink-0">
                     <span className="text-brand-green font-bold text-sm">
                       {Math.round((1 / item.odds) * 100)}%
                     </span>
                     <button
                       onClick={() => removePrediction(item.matchId, item.market)}
+                      aria-label="Remove pick"
                       className="text-gray-600 hover:text-red-400 transition-colors"
                     >
                       <X size={14} />
@@ -125,7 +109,7 @@ export default function PredictionSlip() {
           {/* Footer */}
           <div className="p-3 border-t border-brand-dark-5 space-y-2 shrink-0">
             <div className="flex items-center justify-between text-xs text-gray-400">
-              <span>{items.length} pick{items.length !== 1 ? "s" : ""} selected</span>
+              <span>{items.length} pick{items.length !== 1 ? "s" : ""} awaiting results</span>
             </div>
             <button
               onClick={clearAll}
@@ -164,20 +148,65 @@ export default function PredictionSlip() {
           <div className="w-16 h-16 rounded-full bg-brand-dark-4 flex items-center justify-center">
             <span className="text-3xl">📋</span>
           </div>
-          <p className="text-gray-400 text-sm">No pick history yet. Start picking matches!</p>
+          <p className="text-gray-400 text-sm">
+            No finished picks yet. Once a match you picked ends, it moves here with
+            the final score and whether you called it right.
+          </p>
         </div>
       ) : (
         <div className="p-2 space-y-1.5">
+          {/* Running record across settled picks */}
+          <div className="flex items-center justify-between px-1 pb-1.5 text-[11px]">
+            <span className="text-gray-500">
+              {correctCount} of {history.length} correct
+            </span>
+            <span className="text-gray-400 font-semibold">
+              {Math.round((correctCount / history.length) * 100)}%
+            </span>
+          </div>
+
           {history.map((pick) => (
-            <div key={pick.id} className="bg-brand-dark-3 rounded-lg px-3 py-2.5 border border-brand-dark-5 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-gray-400 truncate">{pick.home_team} vs {pick.away_team}</p>
-                <p className={`text-xs font-semibold mt-0.5 ${PICK_COLOR[pick.pick]}`}>{PICK_LABEL[pick.pick]} Win</p>
+            <Link
+              key={`${pick.matchId}-${pick.market}`}
+              href={`/match/${pick.matchId}`}
+              onClick={closeDrawer}
+              className={clsx(
+                "block rounded-lg px-3 py-2.5 border transition-colors",
+                pick.correct
+                  ? "bg-brand-green/5 border-brand-green/30 hover:border-brand-green/60"
+                  : "bg-brand-dark-3 border-brand-dark-5 hover:border-gray-600"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-gray-400 truncate">
+                    {pick.home} vs {pick.away}
+                  </p>
+                  <p className="text-xs font-semibold mt-0.5 text-gray-300 truncate">
+                    You picked <span className="text-white">{pick.selection}</span>
+                  </p>
+                </div>
+
+                {/* Final score */}
+                <div className="text-center shrink-0 px-1">
+                  <p className="text-sm font-bold text-white tabular-nums leading-none">
+                    {pick.goals.home ?? "–"}–{pick.goals.away ?? "–"}
+                  </p>
+                  <p className="text-[9px] text-gray-600 mt-0.5 uppercase tracking-wide">Final</p>
+                </div>
+
+                {/* Verdict */}
+                <span
+                  className={clsx(
+                    "shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
+                    pick.correct ? "bg-brand-green text-black" : "bg-red-500/20 text-red-400"
+                  )}
+                  title={pick.correct ? "Correct" : "Wrong"}
+                >
+                  {pick.correct ? <Check size={13} strokeWidth={3} /> : <X size={13} strokeWidth={3} />}
+                </span>
               </div>
-              <p className="text-[10px] text-gray-600 shrink-0">
-                {new Date(pick.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-              </p>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -194,12 +223,12 @@ export default function PredictionSlip() {
   return (
     <>
       {/* Desktop sidebar (xl+) */}
-      <aside className="w-72 shrink-0 bg-brand-dark-2 border-l border-brand-dark-5 flex-col hidden xl:flex">
+      <aside className="w-72 shrink-0 bg-brand-dark-2 border-l border-brand-dark-5 flex-col hidden 2xl:flex">
         {panelContent}
       </aside>
 
       {/* Mobile FAB (< xl) */}
-      <div className="xl:hidden fixed bottom-6 right-5 z-50">
+      <div className="2xl:hidden fixed bottom-6 right-5 z-50">
         <button
           onClick={() => setDrawerOpen(true)}
           className="flex items-center gap-2 bg-brand-green text-black font-bold px-4 py-3 rounded-full shadow-lg hover:bg-brand-green-hover transition-colors"
@@ -216,7 +245,7 @@ export default function PredictionSlip() {
 
       {/* Mobile bottom drawer (< xl) */}
       {drawerOpen && (
-        <div className="xl:hidden fixed inset-0 z-50 flex flex-col justify-end">
+        <div className="2xl:hidden fixed inset-0 z-50 flex flex-col justify-end">
           <div
             className="absolute inset-0 bg-black/60"
             onClick={() => setDrawerOpen(false)}

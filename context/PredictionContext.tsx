@@ -1,12 +1,25 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { PredictionItem } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
+import type { FixtureResult } from "@/app/api/football/results/route";
+
+/** A pick whose match has finished, with how it turned out. */
+export interface SettledPick extends PredictionItem {
+  goals: { home: number | null; away: number | null };
+  outcome: "home" | "draw" | "away";
+  correct: boolean;
+  kickoff: string;
+}
 
 interface PredictionContextType {
+  /** Picks on matches that have not finished — upcoming or in play. */
   items: PredictionItem[];
+  /** Picks on matches that have finished, newest first. */
+  history: SettledPick[];
+  historyLoading: boolean;
   addPrediction: (item: PredictionItem) => void;
   removePrediction: (matchId: string, market: string) => void;
   clearAll: () => void;
@@ -43,39 +56,124 @@ function oddsFromConfidence(confidence: number | null): number {
   return 100 / confidence;
 }
 
+interface PickRow {
+  fixture_id: number;
+  home_team: string;
+  away_team: string;
+  pick: "home" | "draw" | "away";
+  confidence: number | null;
+  result: string | null;
+}
+
 export function PredictionProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<PredictionItem[]>([]);
+  const [history, setHistory] = useState<SettledPick[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const { user } = useAuth();
 
-  // Load picks from Supabase when user logs in
-  useEffect(() => {
-    if (!user || !hasSupabaseConfig()) return;
+  const rowToItem = (row: PickRow): PredictionItem => ({
+    matchId: String(row.fixture_id),
+    home: row.home_team,
+    away: row.away_team,
+    market: marketKeyFor(row.pick),
+    selection: row.pick === "home" ? row.home_team : row.pick === "away" ? row.away_team : "Draw",
+    odds: oddsFromConfidence(row.confidence),
+  });
+
+  /**
+   * Load every saved pick, then ask which of those fixtures have finished and
+   * split on the answer. A pick belongs in exactly one place: still to play, or
+   * settled with a result. Doing this in the provider rather than in each panel
+   * keeps one source of truth and one round of requests.
+   */
+  const loadPicks = useCallback(async () => {
+    if (!user || !hasSupabaseConfig()) {
+      setItems([]);
+      setHistory([]);
+      return;
+    }
+
+    setHistoryLoading(true);
     const supabase = createClient();
-    const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    supabase
+
+    const { data, error } = await supabase
       .from("user_picks")
-      .select("fixture_id, home_team, away_team, pick, confidence")
+      .select("fixture_id, home_team, away_team, pick, confidence, result")
       .eq("user_id", user.id)
-      .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (!data) return;
-        const loaded: PredictionItem[] = data.map((row) => ({
-          matchId: String(row.fixture_id),
-          home: row.home_team,
-          away: row.away_team,
-          market: marketKeyFor(row.pick),
-          selection: row.pick === "home" ? row.home_team : row.pick === "away" ? row.away_team : "Draw",
-          odds: oddsFromConfidence(row.confidence),
-        }));
-        setItems(loaded);
-      });
+      .limit(100);
+
+    if (error || !data) {
+      if (error) console.error("Loading picks failed", error.message);
+      setHistoryLoading(false);
+      return;
+    }
+
+    const rows = data as PickRow[];
+    if (rows.length === 0) {
+      setItems([]);
+      setHistory([]);
+      setHistoryLoading(false);
+      return;
+    }
+
+    let results: Record<string, FixtureResult> = {};
+    try {
+      const ids = rows.map((r) => r.fixture_id).join(",");
+      const res = await fetch(`/api/football/results?ids=${ids}`);
+      if (res.ok) results = await res.json();
+    } catch {
+      // Leave results empty; everything then stays under active picks rather
+      // than being wrongly filed as history on a transient network failure.
+    }
+
+    const active: PredictionItem[] = [];
+    const settled: SettledPick[] = [];
+
+    for (const row of rows) {
+      const info = results[String(row.fixture_id)];
+      const item = rowToItem(row);
+
+      if (info?.finished && info.outcome) {
+        settled.push({
+          ...item,
+          goals: info.goals,
+          outcome: info.outcome,
+          correct: info.outcome === row.pick,
+          kickoff: info.kickoff,
+        });
+      } else {
+        active.push(item);
+      }
+    }
+
+    settled.sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime());
+    setItems(active);
+    setHistory(settled);
+    setHistoryLoading(false);
+
+    // Record how settled picks turned out. Only writes rows whose stored result
+    // is missing or now disagrees, so a reload is not a hundred pointless
+    // updates.
+    const needsWrite = settled.filter((s) => {
+      const row = rows.find((r) => String(r.fixture_id) === s.matchId);
+      const verdict = s.correct ? "correct" : "wrong";
+      return row && row.result !== verdict;
+    });
+
+    for (const s of needsWrite) {
+      const { error: writeError } = await supabase
+        .from("user_picks")
+        .update({ result: s.correct ? "correct" : "wrong" })
+        .eq("user_id", user.id)
+        .eq("fixture_id", parseInt(s.matchId, 10));
+      if (writeError) console.error("Recording pick result failed", writeError.message);
+    }
   }, [user]);
 
-  // Clear picks when user logs out
   useEffect(() => {
-    if (!user) setItems([]);
-  }, [user]);
+    loadPicks();
+  }, [loadPicks]);
 
   const addPrediction = (item: PredictionItem) => {
     // One pick per fixture. Home, draw and away are mutually exclusive, and
@@ -99,6 +197,8 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
           away_team: item.away,
           pick,
           confidence,
+          // A re-pick on a fixture starts undecided again.
+          result: null,
         }, { onConflict: "user_id,fixture_id" })
         .then(({ error }) => {
           // Was swallowed entirely, so a pick that failed to save looked
@@ -127,13 +227,21 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /** Clears the picks still to play. Settled history is deliberately kept. */
   const clearAll = () => {
+    const activeIds = items.map((i) => parseInt(i.matchId, 10)).filter(Number.isInteger);
     setItems([]);
-    if (user && hasSupabaseConfig()) {
+
+    if (user && hasSupabaseConfig() && activeIds.length > 0) {
       const supabase = createClient();
-      supabase.from("user_picks").delete().eq("user_id", user.id).then(({ error }) => {
-        if (error) console.error("Clearing picks failed", error.message);
-      });
+      supabase
+        .from("user_picks")
+        .delete()
+        .eq("user_id", user.id)
+        .in("fixture_id", activeIds)
+        .then(({ error }) => {
+          if (error) console.error("Clearing picks failed", error.message);
+        });
     }
   };
 
@@ -141,7 +249,9 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
     items.some((b) => b.matchId === matchId && b.market === market);
 
   return (
-    <PredictionContext.Provider value={{ items, addPrediction, removePrediction, clearAll, hasPrediction }}>
+    <PredictionContext.Provider
+      value={{ items, history, historyLoading, addPrediction, removePrediction, clearAll, hasPrediction }}
+    >
       {children}
     </PredictionContext.Provider>
   );

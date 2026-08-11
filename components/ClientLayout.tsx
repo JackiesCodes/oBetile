@@ -12,6 +12,7 @@ import RightPanel from "@/components/RightPanel";
 import AuthModal from "@/components/AuthModal";
 import SearchModal from "@/components/SearchModal";
 import Footer from "@/components/Footer";
+import PredictionSlip from "@/components/PredictionSlip";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -32,6 +33,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <Footer />
           </main>
           <RightPanel />
+          <PredictionSlip />
         </div>
       </PredictionProvider>
       </FavouritesProvider>
