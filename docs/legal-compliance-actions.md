@@ -164,8 +164,12 @@ posts, likes).
    Vercel in `iad1`/US) triggers cross-border transfer requirements.
 3. Whether a **Data Protection Officer** is required at your scale.
 4. Whether **GDPR** applies — it will if you knowingly offer the service to users in the
-   EU/UK. The published privacy policy already honours the core rights (access,
-   correction, erasure) regardless.
+   EU/UK. **Treat this as likely rather than possible:** the site's copy was changed on
+   11 August 2026 from "Soccer Predictions in Botswana" to worldwide coverage naming
+   European competitions, which is close to an explicit statement that EU users are being
+   targeted. The published privacy policy already honours the core rights (access,
+   correction, erasure) regardless, but ask specifically whether an EU representative or
+   a lawful-basis record is needed.
 
 **Already handled in code:** privacy policy, terms of use, an explicit statement that no
 analytics or third-party trackers run (enforced by the CSP), and working self-service

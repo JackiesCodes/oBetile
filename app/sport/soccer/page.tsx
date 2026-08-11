@@ -157,15 +157,17 @@ export default function SoccerPage() {
 
           <div className="px-4 py-6 border-t border-brand-dark-5 mt-4">
             <h2 className="text-white font-bold text-base mb-2">
-              Soccer Predictions in Botswana — Predict with oBetile
+              Football Predictions Worldwide — Predict with oBetile
             </h2>
             <p className="text-gray-500 text-xs leading-relaxed">
-              Get win probability predictions for all your favourite matches from the Premier League
-              to the UEFA Champions League. Live match insights, real-time percentage forecasts, and
-              intelligent outcome analysis — all built for Botswana sports fans.
+              Win probabilities for matches across the globe, from the Premier League and the UEFA
+              Champions League to MLS, the Brasileirão and Liga MX. Live scores, standings and
+              outcome analysis — wherever you are, and whoever you follow.
             </p>
+            {/* Named competitions span several continents, so the coverage claim
+                above is visibly backed up rather than being Europe-only. */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-              {["English Premier League", "UEFA Champions League", "Serie A", "La Liga"].map((l) => (
+              {["Premier League", "UEFA Champions League", "MLS", "Brasileirão"].map((l) => (
                 <div key={l} className="bg-brand-dark-3 rounded px-3 py-2 text-xs text-gray-400 text-center">
                   {l}
                 </div>
