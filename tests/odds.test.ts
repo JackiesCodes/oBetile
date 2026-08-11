@@ -116,6 +116,21 @@ describe("normaliseToFairOdds", () => {
     expect(p[0]).toBeGreaterThan(p[1]);
   });
 
+  it("refuses a perfectly flat forecast", () => {
+    // The model returns 33/33/33 for fixtures it has no history for. Measured
+    // against production: four unpriced fixtures all came back exactly flat.
+    // That is the absence of a prediction, and showing it would put the same
+    // confident-looking 33% on every obscure match.
+    expect(normaliseToFairOdds({ home: 33, draw: 33, away: 33 })).toBeNull();
+    expect(normaliseToFairOdds({ home: 1, draw: 1, away: 1 })).toBeNull();
+  });
+
+  it("keeps a genuinely balanced forecast that is not exactly flat", () => {
+    const fair = normaliseToFairOdds({ home: 34, draw: 33, away: 33 });
+    expect(fair).not.toBeNull();
+    expect(pct(fair!)[0]).toBeGreaterThan(pct(fair!)[1]);
+  });
+
   it("refuses a set containing a zero or negative share", () => {
     // Would otherwise divide by zero and render Infinity.
     expect(normaliseToFairOdds({ home: 0, draw: 50, away: 50 })).toBeNull();

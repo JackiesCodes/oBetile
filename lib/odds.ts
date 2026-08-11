@@ -62,6 +62,18 @@ export function normaliseToFairOdds(percents: OneXTwo): OneXTwo | null {
   if (!Number.isFinite(total) || total <= 0) return null;
   if (percents.home <= 0 || percents.draw <= 0 || percents.away <= 0) return null;
 
+  /*
+   * Reject a perfectly flat forecast.
+   *
+   * For fixtures with little history the model returns 33/33/33, which is not a
+   * prediction — it is the absence of one. Rendering it would put an identical,
+   * confident-looking 33% on every obscure match, which is worse than the dash
+   * it replaced: a dash reads as "no forecast", 33/33/33 reads as a forecast.
+   *
+   * Only exact equality is refused, so a genuinely balanced 34/33/33 still shows.
+   */
+  if (percents.home === percents.draw && percents.draw === percents.away) return null;
+
   return {
     home: total / percents.home,
     draw: total / percents.draw,
