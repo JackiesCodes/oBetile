@@ -84,10 +84,39 @@ export function poissonPmf(k: number, lambda: number): number {
 }
 
 /**
+ * How strongly low scorelines depart from independence.
+ *
+ * Two independent Poissons under-count 0-0 and 1-1 and over-count 1-0 and 0-1,
+ * which systematically under-prices the draw. This is the Dixon-Coles
+ * correction at roughly the magnitude their paper fitted.
+ */
+const LOW_SCORE_CORRELATION = 0.13;
+
+/**
+ * Dixon-Coles weight for a scoreline. Only the four lowest scores depart from
+ * independence; everything above 1-1 is left alone.
+ */
+export function lowScoreAdjustment(
+  i: number,
+  j: number,
+  lambdaHome: number,
+  lambdaAway: number
+): number {
+  const rho = LOW_SCORE_CORRELATION;
+  let tau = 1;
+  if (i === 0 && j === 0) tau = 1 + rho * lambdaHome * lambdaAway;
+  else if (i === 1 && j === 1) tau = 1 + rho;
+  else if (i === 0 && j === 1) tau = 1 - rho * lambdaHome;
+  else if (i === 1 && j === 0) tau = 1 - rho * lambdaAway;
+  // A large lambda could otherwise drive the 1-0 and 0-1 weights negative.
+  return Math.max(0, tau);
+}
+
+/**
  * Sum the scoreline grid into the three match outcomes.
  *
- * Goals for each side are treated as independent. That slightly understates
- * draws in real football, which the draw nudge below compensates for.
+ * Goals for each side are treated as independent apart from the lowest
+ * scorelines, where the correction above applies.
  */
 export function outcomeProbabilities(lambdaHome: number, lambdaAway: number): Probabilities {
   let home = 0;
@@ -97,7 +126,7 @@ export function outcomeProbabilities(lambdaHome: number, lambdaAway: number): Pr
   for (let i = 0; i <= MAX_GOALS; i++) {
     const pHome = poissonPmf(i, lambdaHome);
     for (let j = 0; j <= MAX_GOALS; j++) {
-      const p = pHome * poissonPmf(j, lambdaAway);
+      const p = pHome * poissonPmf(j, lambdaAway) * lowScoreAdjustment(i, j, lambdaHome, lambdaAway);
       if (i > j) home += p;
       else if (i === j) draw += p;
       else away += p;
@@ -168,6 +197,25 @@ function totalPlayed(t: TeamRecord) {
 }
 
 /**
+ * Matches of league-average performance blended into every team's rate.
+ *
+ * A team plays only ten or so home games a season, so a side scoring at twice
+ * the league rate over eleven home matches is usually good but rarely twice as
+ * good — most of that gap is noise. Two such rates get multiplied together
+ * here, which compounds the error: unshrunk, this model priced a domestic away
+ * win at 3%, a probability no real football match has.
+ *
+ * Blending in a fixed number of average matches pulls short records toward the
+ * league and leaves long ones nearly untouched, so confidence grows with
+ * evidence instead of being assumed from the start.
+ */
+const PRIOR_MATCHES = 6;
+
+function shrink(scored: number, played: number, leagueRate: number): number {
+  return (scored + PRIOR_MATCHES * leagueRate) / (played + PRIOR_MATCHES);
+}
+
+/**
  * Expected goals for both sides, before form and head to head.
  *
  * A team's home attack is its home scoring rate relative to the league's, and
@@ -182,10 +230,14 @@ export function expectedGoals(
 ): { home: number; away: number } | null {
   if (home.home.played === 0 || away.away.played === 0) return null;
 
-  const homeAttack = home.home.goalsFor / home.home.played / avg.homeGoals;
-  const homeDefence = home.home.goalsAgainst / home.home.played / avg.awayGoals;
-  const awayAttack = away.away.goalsFor / away.away.played / avg.awayGoals;
-  const awayDefence = away.away.goalsAgainst / away.away.played / avg.homeGoals;
+  const homeAttack =
+    shrink(home.home.goalsFor, home.home.played, avg.homeGoals) / avg.homeGoals;
+  const homeDefence =
+    shrink(home.home.goalsAgainst, home.home.played, avg.awayGoals) / avg.awayGoals;
+  const awayAttack =
+    shrink(away.away.goalsFor, away.away.played, avg.awayGoals) / avg.awayGoals;
+  const awayDefence =
+    shrink(away.away.goalsAgainst, away.away.played, avg.homeGoals) / avg.homeGoals;
 
   const lambdaHome = homeAttack * awayDefence * avg.homeGoals;
   const lambdaAway = awayAttack * homeDefence * avg.awayGoals;

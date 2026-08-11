@@ -7,6 +7,7 @@ import {
   leagueAverages,
   expectedGoals,
   applyHeadToHead,
+  lowScoreAdjustment,
   predictFixture,
   toPercentages,
   normalise,
@@ -154,6 +155,22 @@ describe("expectedGoals", () => {
     const noHome = team(1, { home: { played: 0, goalsFor: 0, goalsAgainst: 0 } });
     expect(expectedGoals(noHome, team(2), avg)).toBeNull();
   });
+
+  it("trusts a long record more than a short one", () => {
+    // Both sides score at three times the league rate at home; one has shown it
+    // over two matches, the other over twenty. The longer record must move the
+    // expectation further.
+    const rate = avg.homeGoals * 3;
+    const brief = team(1, { home: { played: 2, goalsFor: rate * 2, goalsAgainst: 2 } });
+    const sustained = team(1, { home: { played: 20, goalsFor: rate * 20, goalsAgainst: 20 } });
+
+    const short = expectedGoals(brief, team(2), avg)!;
+    const long = expectedGoals(sustained, team(2), avg)!;
+
+    expect(long.home).toBeGreaterThan(short.home);
+    // And the brief record must not be taken at anything like face value.
+    expect(short.home).toBeLessThan(rate);
+  });
 });
 
 describe("applyHeadToHead", () => {
@@ -221,6 +238,68 @@ describe("predictFixture", () => {
 
   it("refuses when the table is unusable", () => {
     expect(predictFixture({ home: team(1), away: team(2), table: [] })).toBeNull();
+  });
+
+  it("keeps a lopsided but real pairing inside plausible bounds", () => {
+    // Records at this gap occur every season in a professional league. Before
+    // shrinkage the model answered a fixture of this shape with a 3% away win,
+    // measured against production — a figure no 1X2 market produces.
+    const strong = team(1, { home: { played: 11, goalsFor: 22, goalsAgainst: 6 } });
+    const weak = team(2, { away: { played: 11, goalsFor: 7, goalsAgainst: 20 } });
+
+    const p = predictFixture({ home: strong, away: weak, table: flatTable })!;
+    expect(p.home).toBeLessThan(0.85);
+    expect(p.away).toBeGreaterThan(0.04);
+  });
+
+  it("stops short of certainty even on an absurd mismatch", () => {
+    // Not a fixture a real league produces, but the feed carries amateur and
+    // youth competitions where records do reach this gap. The model may be very
+    // confident; it must never be certain.
+    const best = team(1, { home: { played: 11, goalsFor: 40, goalsAgainst: 2 }, form: "WWWWW" });
+    const worst = team(2, { away: { played: 11, goalsFor: 1, goalsAgainst: 40 }, form: "LLLLL" });
+
+    const p = predictFixture({ home: best, away: worst, table: flatTable })!;
+    expect(p.home).toBeLessThan(1);
+    expect(p.away).toBeGreaterThan(0);
+  });
+});
+
+describe("low score correction", () => {
+  it("leaves scorelines above 1-1 untouched", () => {
+    expect(lowScoreAdjustment(2, 1, 1.4, 1.1)).toBe(1);
+    expect(lowScoreAdjustment(0, 3, 1.4, 1.1)).toBe(1);
+  });
+
+  it("lifts the two low draws and trims the two low wins", () => {
+    expect(lowScoreAdjustment(0, 0, 1.4, 1.1)).toBeGreaterThan(1);
+    expect(lowScoreAdjustment(1, 1, 1.4, 1.1)).toBeGreaterThan(1);
+    expect(lowScoreAdjustment(1, 0, 1.4, 1.1)).toBeLessThan(1);
+    expect(lowScoreAdjustment(0, 1, 1.4, 1.1)).toBeLessThan(1);
+  });
+
+  it("never goes negative, however high the expectation", () => {
+    for (const [i, j] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      expect(lowScoreAdjustment(i, j, 5, 5)).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("raises the draw above what independent goals would give", () => {
+    // Independent Poissons under-count draws; this is what the correction is
+    // for, so an evenly matched fixture must come out drawier with it than the
+    // raw product would be.
+    const lambda = 1.3;
+    let independentDraw = 0;
+    let total = 0;
+    for (let i = 0; i <= 8; i++) {
+      for (let j = 0; j <= 8; j++) {
+        const p = poissonPmf(i, lambda) * poissonPmf(j, lambda);
+        total += p;
+        if (i === j) independentDraw += p;
+      }
+    }
+    const corrected = outcomeProbabilities(lambda, lambda);
+    expect(corrected.draw).toBeGreaterThan(independentDraw / total);
   });
 });
 

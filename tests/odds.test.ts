@@ -141,3 +141,19 @@ describe("normaliseToFairOdds", () => {
     expectSumsTo100(pct(normaliseToFairOdds({ home: 83, draw: 12, away: 5 })!));
   });
 });
+
+describe("oddsToPercent", () => {
+  it("converts decimal odds to a whole percentage", () => {
+    expect(oddsToPercent(2)).toBe(50);
+    expect(oddsToPercent(4)).toBe(25);
+    expect(oddsToPercent(1.25)).toBe(80);
+  });
+
+  it("never renders an outcome as impossible", () => {
+    // Each percentage is also a button. A fixture lopsided enough to round
+    // below half a point must still read as a long shot, not as 0%.
+    expect(oddsToPercent(500)).toBe(1);
+    expect(oddsToPercent(1e6)).toBe(1);
+    expect(oddsToPercent(Infinity)).toBe(1);
+  });
+});
