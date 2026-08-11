@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import type { APIFixture } from "@/types";
+import { outcomeOf, FINISHED_STATUSES, LIVE_STATUSES, type Outcome } from "@/lib/fixture-outcome";
 
 /**
  * Outcomes for a specific set of fixtures.
@@ -13,9 +14,6 @@ import type { APIFixture } from "@/types";
  * tonight's game from one on a match that finished last week without asking.
  * This answers that for a batch of ids at once rather than per pick.
  */
-
-const FINISHED = new Set(["FT", "AET", "PEN", "AWD", "WO"]);
-const LIVE = new Set(["1H", "2H", "ET", "P", "HT", "BT", "SUSP", "INT"]);
 
 /** API-Football accepts at most 20 ids per request, dash separated. */
 const IDS_PER_REQUEST = 20;
@@ -31,24 +29,8 @@ export interface FixtureResult {
   away: string;
   goals: { home: number | null; away: number | null };
   /** Who won, once finished. Null while the match is still to be decided. */
-  outcome: "home" | "draw" | "away" | null;
+  outcome: Outcome;
   kickoff: string;
-}
-
-function outcomeOf(f: APIFixture): FixtureResult["outcome"] {
-  if (!FINISHED.has(f.fixture.status.short)) return null;
-
-  // Prefer the API's own winner flags: a tie decided on penalties has level
-  // goals but a real winner, which comparing the score would get wrong.
-  if (f.teams.home.winner === true) return "home";
-  if (f.teams.away.winner === true) return "away";
-  if (f.teams.home.winner === false || f.teams.away.winner === false) {
-    return f.teams.home.winner === false ? "away" : "home";
-  }
-
-  const { home, away } = f.goals;
-  if (home === null || away === null) return null;
-  return home > away ? "home" : home < away ? "away" : "draw";
 }
 
 export async function GET(req: NextRequest) {
@@ -83,8 +65,8 @@ export async function GET(req: NextRequest) {
         const short = f.fixture?.status?.short ?? "";
         result[String(f.fixture.id)] = {
           status: short,
-          finished: FINISHED.has(short),
-          live: LIVE.has(short),
+          finished: FINISHED_STATUSES.has(short),
+          live: LIVE_STATUSES.has(short),
           home: f.teams.home.name,
           away: f.teams.away.name,
           goals: { home: f.goals.home, away: f.goals.away },

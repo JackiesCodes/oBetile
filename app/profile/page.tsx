@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 import { Check, Pencil } from "lucide-react";
@@ -15,6 +16,9 @@ interface ProfileData {
 interface Stats {
   picks: number;
   favourites: number;
+  /** Settled picks only — an accuracy including undecided matches is meaningless. */
+  settled: number;
+  correct: number;
 }
 
 interface RecentPick {
@@ -24,6 +28,8 @@ interface RecentPick {
   away_team: string;
   pick: "home" | "draw" | "away";
   created_at: string;
+  /** Written by the prediction provider once the match finishes. */
+  result: "correct" | "wrong" | "push" | null;
 }
 
 const PICK_LABEL: Record<string, string> = { home: "Home Win", draw: "Draw", away: "Away Win" };
@@ -34,7 +40,7 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [stats, setStats] = useState<Stats>({ picks: 0, favourites: 0 });
+  const [stats, setStats] = useState<Stats>({ picks: 0, favourites: 0, settled: 0, correct: 0 });
   const [recentPicks, setRecentPicks] = useState<RecentPick[]>([]);
   const [username, setUsername] = useState("");
   const [editingUsername, setEditingUsername] = useState(false);
@@ -74,15 +80,23 @@ export default function ProfilePage() {
     const supabase = createClient();
 
     async function load() {
-      const [{ data: prof }, { count: pickCount }, { count: favCount }, { data: picks }] = await Promise.all([
+      const [{ data: prof }, { count: pickCount }, { count: favCount }, { data: picks }, { data: settledRows }] = await Promise.all([
         supabase.from("profiles").select("username, avatar_url, created_at").eq("id", user!.id).single(),
         supabase.from("user_picks").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
         supabase.from("favourites").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
-        supabase.from("user_picks").select("id, fixture_id, home_team, away_team, pick, created_at").eq("user_id", user!.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("user_picks").select("id, fixture_id, home_team, away_team, pick, created_at, result").eq("user_id", user!.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("user_picks").select("result").eq("user_id", user!.id).not("result", "is", null),
       ]);
 
       if (prof) { setProfile(prof); setUsername(prof.username ?? ""); }
-      setStats({ picks: pickCount ?? 0, favourites: favCount ?? 0 });
+
+      const settled = (settledRows as { result: string }[] | null) ?? [];
+      setStats({
+        picks: pickCount ?? 0,
+        favourites: favCount ?? 0,
+        settled: settled.length,
+        correct: settled.filter((r) => r.result === "correct").length,
+      });
       setRecentPicks((picks as RecentPick[]) ?? []);
     }
 
@@ -139,9 +153,16 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           {[
             { label: "Total Picks", value: stats.picks, icon: "🔮" },
+            {
+              // Accuracy over settled picks only. Counting undecided matches as
+              // misses would drag it down for no reason.
+              label: stats.settled > 0 ? `Correct of ${stats.settled}` : "No results yet",
+              value: stats.settled > 0 ? `${Math.round((stats.correct / stats.settled) * 100)}%` : "—",
+              icon: "🎯",
+            },
             { label: "Favourites", value: stats.favourites, icon: "⭐" },
           ].map(({ label, value, icon }) => (
             <div key={label} className="bg-brand-dark-2 rounded-xl border border-brand-dark-5 p-4 text-center">
@@ -207,15 +228,37 @@ export default function ProfilePage() {
           ) : (
             <div className="space-y-2">
               {recentPicks.map((pick) => (
-                <div key={pick.id} className="flex items-center gap-3 bg-brand-dark-3 rounded-lg px-3 py-2.5">
+                <Link
+                  key={pick.id}
+                  href={`/match/${pick.fixture_id}`}
+                  className="flex items-center gap-3 bg-brand-dark-3 rounded-lg px-3 py-2.5 border border-transparent hover:border-brand-green/40 transition-colors"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-300 truncate">{pick.home_team} vs {pick.away_team}</p>
                     <p className={`text-xs font-semibold mt-0.5 ${PICK_COLOR[pick.pick]}`}>{PICK_LABEL[pick.pick]}</p>
                   </div>
+
+                  {/* Verdict, or a note that the match has not settled yet —
+                      showing nothing made a decided pick look identical to one
+                      still waiting. */}
+                  {pick.result === "correct" || pick.result === "wrong" ? (
+                    <span
+                      className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                        pick.result === "correct"
+                          ? "bg-brand-green/15 text-brand-green"
+                          : "bg-red-500/15 text-red-400"
+                      }`}
+                    >
+                      {pick.result === "correct" ? "Correct" : "Wrong"}
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-[10px] text-gray-600 uppercase tracking-wide">Pending</span>
+                  )}
+
                   <p className="text-[11px] text-gray-600 shrink-0">
                     {new Date(pick.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                   </p>
-                </div>
+                </Link>
               ))}
             </div>
           )}
