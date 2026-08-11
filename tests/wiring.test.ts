@@ -93,3 +93,45 @@ describe("no betting vocabulary in user-facing identifiers", () => {
     }
   });
 });
+
+/**
+ * The percentages are the product, so what the site says about them has to stay
+ * true. This caught a real defect: after the model shipped, both the footer and
+ * the terms still told users every percentage came from bookmaker prices.
+ */
+describe("what the site claims about its percentages", () => {
+  const footer = readFileSync(path.join(ROOT, "components/Footer.tsx"), "utf8");
+  const terms = readFileSync(path.join(ROOT, "app/legal/terms/page.tsx"), "utf8");
+  const method = readFileSync(path.join(ROOT, "app/how-predictions-work/page.tsx"), "utf8");
+
+  it("does not claim bookmaker prices are the only source", () => {
+    // The model supplies percentages for matches no bookmaker prices, so any
+    // copy describing a single source is false.
+    for (const [name, text] of [["footer", footer], ["terms", terms]] as const) {
+      const claimsSingleSource =
+        /derived from publicly\s*\n?\s*available bookmaker prices and are/.test(text) ||
+        /are derived from publicly available bookmaker prices,\s*\n?\s*converted/.test(text);
+      expect(claimsSingleSource, `${name} still describes only one source`).toBe(false);
+    }
+    expect(footer).toMatch(/our own model/);
+    expect(terms).toMatch(/standings, recent form and head-to-head/);
+  });
+
+  it("reaches the methodology page from every page", () => {
+    // Footer renders site-wide, so a link there is reachable everywhere.
+    expect(footer).toMatch(/href="\/how-predictions-work"/);
+  });
+
+  it("states the limits rather than only the strengths", () => {
+    for (const claim of [/Injuries, suspensions/, /wrong about half the time/, /not advice/]) {
+      expect(method).toMatch(claim);
+    }
+  });
+
+  it("keeps the published accuracy figures traceable to the backtest", () => {
+    // If someone edits a number on the page, the script that produced it must
+    // still exist to re-check it against.
+    expect(method).toMatch(/scripts\/backtest\.ts/);
+    expect(() => readFileSync(path.join(ROOT, "scripts/backtest.ts"), "utf8")).not.toThrow();
+  });
+});

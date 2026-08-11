@@ -28,10 +28,18 @@ export default function TermsPage() {
 
       <h2>Accuracy — please read</h2>
       <p>
-        Win percentages shown on the site are derived from publicly available bookmaker prices,
-        converted into implied probabilities. <strong>They are estimates, not forecasts of what will
-        happen</strong>, and they are frequently wrong. Fixtures, scores, line-ups and standings come
-        from a third-party data provider and may be delayed, incomplete or inaccurate.
+        Win percentages come from one of two sources. Where a match is priced by bookmakers, we
+        convert publicly available prices into implied probabilities. Where it is not, we compute an
+        estimate ourselves from league standings, recent form and head-to-head record. Our{" "}
+        <Link href="/how-predictions-work">methodology page</Link> explains how, and reports how
+        accurate it has measured.
+      </p>
+      <p>
+        <strong>Either way these are estimates, not forecasts of what will happen</strong>, and they
+        are frequently wrong — a match we call at 70% still loses roughly three times in ten. Some
+        fixtures show no percentage at all, because we would rather show nothing than invent a
+        number. Fixtures, scores, line-ups and standings come from a third-party data provider and
+        may be delayed, incomplete or inaccurate.
       </p>
       <p>
         Nothing on oBetile is betting advice or a recommendation to gamble. Do not rely on anything

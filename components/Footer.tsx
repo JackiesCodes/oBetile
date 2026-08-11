@@ -11,8 +11,9 @@ export default function Footer() {
       <div className="max-w-3xl mx-auto space-y-3">
         <p className="text-[11px] text-gray-500 leading-relaxed">
           <span className="text-gray-400 font-semibold">oBetile is not a bookmaker.</span>{" "}
-          No money can be staked or won here. Win percentages are estimates derived from publicly
-          available bookmaker prices and are often wrong — they are not betting advice. 18+.
+          No money can be staked or won here. Win percentages are estimates — from published
+          bookmaker prices where a match is priced, otherwise from our own model — and they are
+          often wrong. They are not betting advice. 18+.
         </p>
         <p className="text-[11px] text-gray-600 leading-relaxed">
           Match data provided by API-Football. Club badges and competition names are the trademarks
@@ -20,6 +21,9 @@ export default function Footer() {
           affiliation or endorsement.
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+          <Link href="/how-predictions-work" className="text-gray-400 hover:text-brand-green transition-colors">
+            How predictions work
+          </Link>
           <Link href="/legal/terms" className="text-gray-400 hover:text-brand-green transition-colors">
             Terms of Use
           </Link>
