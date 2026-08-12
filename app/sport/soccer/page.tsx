@@ -200,7 +200,7 @@ export default function SoccerPage() {
         <div className="flex-1 overflow-y-auto">
           {loading && (
             <div className="flex items-center justify-center py-20">
-              <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
             </div>
           )}
 

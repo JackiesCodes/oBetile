@@ -90,7 +90,7 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
       {/* Search panel */}
       <div className="relative w-full max-w-2xl mx-auto mt-8 sm:mt-20 px-4">
         {/* Input */}
-        <div className="flex items-center gap-3 bg-brand-dark-2 rounded-2xl px-4 py-3 border border-brand-dark-5 focus-within:border-brand-green transition-colors shadow-2xl">
+        <div className="flex items-center gap-3 bg-brand-dark-2 rounded-2xl px-4 py-3 border border-brand-dark-5 focus-within:border-brand-accent transition-colors shadow-2xl">
           <Search size={18} className="text-gray-400 shrink-0" />
           <input
             ref={inputRef}

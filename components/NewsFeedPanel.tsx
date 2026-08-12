@@ -68,7 +68,7 @@ export default function NewsFeedPanel({ collapsed, onToggleCollapse, activeLeagu
         onClick={onToggleCollapse}
         className="w-full flex items-center gap-2 px-4 py-3 hover:bg-brand-dark-3 transition-colors text-left"
       >
-        <Newspaper size={14} className="text-brand-green shrink-0" />
+        <Newspaper size={14} className="text-brand-accent shrink-0" />
         <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex-1">
           News Feed
         </span>
@@ -121,7 +121,7 @@ export default function NewsFeedPanel({ collapsed, onToggleCollapse, activeLeagu
             )}
             {activeLeagues.length > 0 && loading && (
               <div className="flex items-center justify-center py-4">
-                <div className="w-4 h-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
               </div>
             )}
             {activeLeagues.length > 0 && !loading && items.length === 0 && (

@@ -38,7 +38,7 @@ function VoteChips({ votes, home, away }: { votes: VoteCounts; home: string; awa
           className="flex items-center gap-1 bg-brand-dark-4 rounded px-1.5 py-0.5 text-[10px] font-semibold text-gray-400"
         >
           <span className="text-gray-500">{label}</span>
-          <span className={clsx(pct !== null ? "text-brand-green" : "text-gray-600")}>
+          <span className={clsx(pct !== null ? "text-brand-accent" : "text-gray-600")}>
             {pct !== null ? `${pct}%` : "—"}
           </span>
         </div>
@@ -66,7 +66,7 @@ export default function MatchRow({ match, votes }: Props) {
             <div className="flex flex-col items-center gap-0.5">
               <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse inline-block" />
-                <span className="text-brand-green text-[11px] font-bold">LIVE</span>
+                <span className="text-brand-accent text-[11px] font-bold">LIVE</span>
               </span>
               {match.minute && (
                 <span className="text-gray-400 text-[11px]">{match.minute}&apos;</span>
@@ -91,10 +91,10 @@ export default function MatchRow({ match, votes }: Props) {
             {/* Score (live only) */}
             {isLive && match.score && (
               <div className="text-center shrink-0">
-                <div className="text-brand-green font-bold text-sm leading-tight">
+                <div className="text-brand-accent font-bold text-sm leading-tight">
                   {match.score.split("-")[0]}
                 </div>
-                <div className="text-brand-green font-bold text-sm leading-tight">
+                <div className="text-brand-accent font-bold text-sm leading-tight">
                   {match.score.split("-")[1]}
                 </div>
               </div>
@@ -117,7 +117,7 @@ export default function MatchRow({ match, votes }: Props) {
           aria-label={`${match.home} versus ${match.away} details`}
           className="shrink-0"
         >
-          <ChevronRight size={15} className="text-gray-600 group-hover:text-brand-green transition-colors" />
+          <ChevronRight size={15} className="text-gray-600 group-hover:text-brand-accent transition-colors" />
         </Link>
       </div>
 

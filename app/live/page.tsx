@@ -55,7 +55,7 @@ export default function LivePage() {
       <div className="flex items-center gap-3 px-4 py-3 bg-brand-dark-2 border-b border-brand-dark-5">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-brand-green animate-pulse" />
-          <Activity size={18} className="text-brand-green" />
+          <Activity size={18} className="text-brand-accent" />
         </div>
         <div>
           <h1 className="text-white font-bold text-lg leading-tight">Live Matches</h1>
@@ -91,7 +91,7 @@ export default function LivePage() {
             <span
               className={clsx(
                 "text-[10px] font-bold px-1 rounded",
-                activeSport === sportId ? "text-black/60" : "text-brand-green"
+                activeSport === sportId ? "text-black/60" : "text-brand-accent"
               )}
             >
               {count}
@@ -104,7 +104,7 @@ export default function LivePage() {
       <div className="flex-1 overflow-y-auto">
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 

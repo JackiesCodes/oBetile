@@ -184,8 +184,8 @@ function MarketCard({
               className={clsx(
                 "w-full rounded-lg overflow-hidden text-left transition-all border",
                 isVoted
-                  ? "border-brand-green"
-                  : "border-brand-dark-5 hover:border-brand-green/40"
+                  ? "border-brand-accent"
+                  : "border-brand-dark-5 hover:border-brand-accent/40"
               )}
             >
               <div className="relative px-3 py-2 flex items-center justify-between">
@@ -205,7 +205,7 @@ function MarketCard({
                 <span className={clsx("relative text-xs font-semibold z-10", isVoted ? "text-white" : "text-gray-300")}>
                   {labelFor(choice.id, choice.label)}
                 </span>
-                <span className={clsx("relative text-xs font-bold z-10", isVoted ? "text-brand-green" : "text-gray-400")}>
+                <span className={clsx("relative text-xs font-bold z-10", isVoted ? "text-brand-accent" : "text-gray-400")}>
                   {total > 0 ? `${pct}%` : "—"}
                 </span>
               </div>
@@ -288,7 +288,7 @@ export default function MatchVotePanel({ fixtureId, prediction, homeTeamName, aw
     <div className="p-4 space-y-4">
       {/* AI Prediction block */}
       {prediction && (
-        <div className="bg-brand-dark-3 rounded-xl p-4 border border-brand-green/20">
+        <div className="bg-brand-dark-3 rounded-xl p-4 border border-brand-accent/20">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">🤖</span>
             <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">AI Prediction</span>
@@ -301,7 +301,7 @@ export default function MatchVotePanel({ fixtureId, prediction, homeTeamName, aw
           {prediction.winner?.comment && (
             <p className="text-gray-400 text-xs mb-2">{prediction.winner.comment}</p>
           )}
-          <p className="text-brand-green text-xs italic mb-3">{prediction.advice}</p>
+          <p className="text-brand-accent text-xs italic mb-3">{prediction.advice}</p>
 
           {/* Win probability bars */}
           <div className="space-y-2">
@@ -326,10 +326,10 @@ export default function MatchVotePanel({ fixtureId, prediction, homeTeamName, aw
 
       {/* Community voting section */}
       <div className="flex items-center gap-2">
-        <TrendingUp size={13} className="text-brand-green" />
+        <TrendingUp size={13} className="text-brand-accent" />
         <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Community Vote</span>
         {!user && (
-          <button onClick={() => openAuthModal("login")} className="ml-auto text-[10px] text-brand-green hover:underline">
+          <button onClick={() => openAuthModal("login")} className="ml-auto text-[10px] text-brand-accent hover:underline">
             Log in to vote
           </button>
         )}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ClientLayout from "@/components/ClientLayout";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: "oBetile — Football Predictions & Live Scores",
@@ -17,7 +18,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the script below mutates this element before
+    // React hydrates, which is the whole point of it running early.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Must run before the first paint, or the page renders in the wrong
+            theme and then corrects itself — the flash every themed site is
+            judged on. Inline and synchronous is the only way to get that. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="bg-brand-dark text-white min-h-screen">
         <ClientLayout>{children}</ClientLayout>
       </body>

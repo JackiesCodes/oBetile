@@ -125,7 +125,7 @@ export default function SeasonPicksPanel() {
     <div className="flex-1 overflow-y-auto flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-dark-5 bg-brand-dark-2 sticky top-0 z-10">
-        <Trophy size={15} className="text-brand-green" />
+        <Trophy size={15} className="text-brand-accent" />
         <span className="text-sm font-bold text-white">Season Picks</span>
         <span className="text-xs text-gray-500 ml-1">— title contenders &amp; relegation</span>
       </div>
@@ -139,7 +139,7 @@ export default function SeasonPicksPanel() {
             className={clsx(
               "flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2",
               activeRegion === r.id
-                ? "text-white border-brand-green"
+                ? "text-white border-brand-accent"
                 : "text-gray-500 border-transparent hover:text-gray-300"
             )}
           >
@@ -151,7 +151,7 @@ export default function SeasonPicksPanel() {
       {/* Loading */}
       {loading && (
         <div className="flex-1 flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+          <div className="w-6 h-6 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
@@ -180,8 +180,8 @@ export default function SeasonPicksPanel() {
 
                 {/* Title race */}
                 <div className="flex items-center gap-1.5 px-4 pt-2.5 pb-1">
-                  <TrendingUp size={11} className="text-brand-green shrink-0" />
-                  <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider">
+                  <TrendingUp size={11} className="text-brand-accent shrink-0" />
+                  <span className="text-[10px] text-brand-accent font-bold uppercase tracking-wider">
                     {league.isFinal ? "Final Top 4" : "Title Race"}
                   </span>
                 </div>
@@ -190,15 +190,15 @@ export default function SeasonPicksPanel() {
                     key={row.team.id}
                     className={clsx(
                       "flex items-center gap-2 px-4 py-2 text-xs border-l-2 hover:bg-brand-dark-3 transition-colors",
-                      idx === 0 ? "border-l-brand-green" : "border-l-blue-500/40"
+                      idx === 0 ? "border-l-brand-accent" : "border-l-blue-500/40"
                     )}
                   >
-                    <span className={clsx("w-4 shrink-0 font-bold", idx === 0 ? "text-brand-green" : "text-gray-500")}>
+                    <span className={clsx("w-4 shrink-0 font-bold", idx === 0 ? "text-brand-accent" : "text-gray-500")}>
                       {row.rank}
                     </span>
                     <span className="flex-1 truncate font-medium text-gray-200">{row.team.name}</span>
                     <FormDots form={row.form} />
-                    <span className={clsx("w-12 text-right font-bold", idx === 0 ? "text-brand-green" : "text-white")}>
+                    <span className={clsx("w-12 text-right font-bold", idx === 0 ? "text-brand-accent" : "text-white")}>
                       {row.points}pts
                     </span>
                   </div>

@@ -47,10 +47,10 @@ export default function MatchStandings({ standings, highlightTeamIds }: Props) {
               key={row.team.id}
               className={clsx(
                 "flex items-center py-2 px-1 rounded text-xs transition-colors",
-                isHighlighted ? "bg-brand-green/10 border border-brand-green/30" : "hover:bg-brand-dark-3"
+                isHighlighted ? "bg-brand-green/10 border border-brand-accent/30" : "hover:bg-brand-dark-3"
               )}
             >
-              <span className={clsx("w-6 shrink-0 font-semibold", isHighlighted ? "text-brand-green" : "text-gray-500")}>
+              <span className={clsx("w-6 shrink-0 font-semibold", isHighlighted ? "text-brand-accent" : "text-gray-500")}>
                 {row.rank}
               </span>
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -68,7 +68,7 @@ export default function MatchStandings({ standings, highlightTeamIds }: Props) {
               <span className="w-7 text-center text-gray-400">{row.all.win}</span>
               <span className="w-7 text-center text-gray-400">{row.all.draw}</span>
               <span className="w-7 text-center text-gray-400">{row.all.lose}</span>
-              <span className={clsx("w-7 text-center", row.goalsDiff > 0 ? "text-brand-green" : row.goalsDiff < 0 ? "text-red-400" : "text-gray-400")}>
+              <span className={clsx("w-7 text-center", row.goalsDiff > 0 ? "text-brand-accent" : row.goalsDiff < 0 ? "text-red-400" : "text-gray-400")}>
                 {row.goalsDiff > 0 ? `+${row.goalsDiff}` : row.goalsDiff}
               </span>
               <span className="w-8 text-center font-bold text-white">{row.points}</span>

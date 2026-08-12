@@ -227,7 +227,7 @@ export default function HomePage() {
             className="flex flex-col items-center gap-1 shrink-0 group"
           >
             <div className="relative">
-              <div className="w-12 h-12 rounded-xl bg-brand-dark-4 group-hover:bg-brand-dark-5 flex items-center justify-center text-2xl transition-colors border border-transparent group-hover:border-brand-green">
+              <div className="w-12 h-12 rounded-xl bg-brand-dark-4 group-hover:bg-brand-dark-5 flex items-center justify-center text-2xl transition-colors border border-transparent group-hover:border-brand-accent">
                 {sport.icon}
               </div>
               {(sport.liveCount ?? 0) > 0 && (
@@ -268,7 +268,7 @@ export default function HomePage() {
           {/* Skeleton loader */}
           {loading && (
             <div className="flex items-center justify-center py-20">
-              <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
             </div>
           )}
 
@@ -331,14 +331,14 @@ function FeaturedCard({
   return (
     <Link
       href={`/match/${match.id}`}
-      className="block bg-brand-dark-3 border border-brand-dark-5 rounded-xl p-3 hover:border-brand-green/40 transition-colors"
+      className="block bg-brand-dark-3 border border-brand-dark-5 rounded-xl p-3 hover:border-brand-accent/40 transition-colors"
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] text-gray-400 font-medium">
           {countryFlags[match.country] ?? "🌍"} {match.league}
         </span>
         {match.status === "live" ? (
-          <span className="flex items-center gap-1 text-[10px] text-brand-green font-bold">
+          <span className="flex items-center gap-1 text-[10px] text-brand-accent font-bold">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-green animate-pulse" />
             LIVE {match.minute}&apos;
           </span>
@@ -352,7 +352,7 @@ function FeaturedCard({
           <div className="text-sm font-semibold text-white truncate">{match.away}</div>
         </div>
         {match.score && (
-          <div className="text-brand-green font-bold text-lg leading-none text-center">
+          <div className="text-brand-accent font-bold text-lg leading-none text-center">
             <div>{match.score.split("-")[0]}</div>
             <div>{match.score.split("-")[1]}</div>
           </div>

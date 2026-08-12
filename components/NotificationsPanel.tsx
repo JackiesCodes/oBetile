@@ -68,7 +68,7 @@ export default function NotificationsPanel({ onClose }: Props) {
       <div className="max-h-80 overflow-y-auto">
         {loading && (
           <div className="flex items-center justify-center py-8">
-            <div className="w-5 h-5 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
@@ -93,9 +93,9 @@ export default function NotificationsPanel({ onClose }: Props) {
             </div>
             <div className="text-right shrink-0">
               {m.score ? (
-                <div className="text-sm font-bold text-brand-green">{m.score.replace("-", " – ")}</div>
+                <div className="text-sm font-bold text-brand-accent">{m.score.replace("-", " – ")}</div>
               ) : null}
-              <div className="text-[10px] text-brand-green font-bold">
+              <div className="text-[10px] text-brand-accent font-bold">
                 {m.minute === "HT" ? "HT" : `${m.minute}'`}
               </div>
             </div>

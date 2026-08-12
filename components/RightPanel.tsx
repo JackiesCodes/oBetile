@@ -101,7 +101,7 @@ function RightPanelDefault() {
           onClick={() => setScorersOpen((p) => !p)}
           className="w-full flex items-center gap-2 px-4 py-3 hover:bg-brand-dark-3 transition-colors text-left"
         >
-          <Award size={14} className="text-brand-green shrink-0" />
+          <Award size={14} className="text-brand-accent shrink-0" />
           <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex-1">
             Top Scorers
           </span>
@@ -177,7 +177,7 @@ function RightPanelDefault() {
                       {s.statistics[0]?.team?.name}
                     </div>
                   </div>
-                  <span className="text-brand-green font-bold text-sm shrink-0">
+                  <span className="text-brand-accent font-bold text-sm shrink-0">
                     {s.statistics[0]?.goals?.total ?? 0}
                   </span>
                 </div>
@@ -190,7 +190,7 @@ function RightPanelDefault() {
       {/* ── League Standings ─────────────────────────────────── */}
       <section className="flex-1">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-dark-5">
-          <TrendingUp size={14} className="text-brand-green" />
+          <TrendingUp size={14} className="text-brand-accent" />
           <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Standings</span>
         </div>
 
@@ -231,7 +231,7 @@ function RightPanelDefault() {
 
                   {table.length === 0 && (
                     <div className="flex items-center justify-center py-3">
-                      <div className="w-4 h-4 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
                     </div>
                   )}
 

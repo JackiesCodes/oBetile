@@ -21,13 +21,13 @@ export default function Footer() {
           affiliation or endorsement.
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
-          <Link href="/how-predictions-work" className="text-gray-400 hover:text-brand-green transition-colors">
+          <Link href="/how-predictions-work" className="text-gray-400 hover:text-brand-accent transition-colors">
             How predictions work
           </Link>
-          <Link href="/legal/terms" className="text-gray-400 hover:text-brand-green transition-colors">
+          <Link href="/legal/terms" className="text-gray-400 hover:text-brand-accent transition-colors">
             Terms of Use
           </Link>
-          <Link href="/legal/privacy" className="text-gray-400 hover:text-brand-green transition-colors">
+          <Link href="/legal/privacy" className="text-gray-400 hover:text-brand-accent transition-colors">
             Privacy Policy
           </Link>
           <span className="text-gray-600">© {new Date().getFullYear()} oBetile</span>

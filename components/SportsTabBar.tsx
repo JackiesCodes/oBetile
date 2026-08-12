@@ -37,7 +37,7 @@ export default function SportsTabBar({
               className={clsx(
                 "px-4 py-3 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 relative shrink-0",
                 activeTab === tab
-                  ? "text-white border-brand-green"
+                  ? "text-white border-brand-accent"
                   : "text-gray-400 border-transparent hover:text-white"
               )}
             >

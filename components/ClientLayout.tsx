@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PredictionProvider } from "@/context/PredictionContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { FavouritesProvider } from "@/context/FavouritesContext";
 import { MatchDetailProvider } from "@/context/MatchDetailContext";
@@ -18,6 +19,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [searchOpen, setSearchOpen] = useState(false);
 
   return (
+    <ThemeProvider>
     <AuthProvider>
       <SubscriptionProvider>
       <MatchDetailProvider>
@@ -40,5 +42,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       </MatchDetailProvider>
       </SubscriptionProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 }

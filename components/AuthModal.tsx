@@ -69,7 +69,7 @@ export default function AuthModal() {
   const Logo = () => (
     <div className="flex font-rajdhani text-xl font-semibold">
       <span className="text-white">o</span>
-      <span className="text-brand-green">Bet</span>
+      <span className="text-brand-accent">Bet</span>
       <span className="text-white">ile</span>
     </div>
   );
@@ -120,7 +120,7 @@ export default function AuthModal() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="your@email.com"
-                      className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 text-sm outline-none border border-brand-dark-5 focus:border-brand-green transition-colors"
+                      className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 text-sm outline-none border border-brand-dark-5 focus:border-brand-accent transition-colors"
                     />
                   </div>
                   {error && (
@@ -148,7 +148,7 @@ export default function AuthModal() {
                   className={clsx(
                     "flex-1 py-3 text-sm font-semibold transition-colors",
                     authModalTab === t
-                      ? "text-white border-b-2 border-brand-green"
+                      ? "text-white border-b-2 border-brand-accent"
                       : "text-gray-500 hover:text-gray-300"
                   )}
                 >
@@ -177,7 +177,7 @@ export default function AuthModal() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="your@email.com"
-                      className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 text-sm outline-none border border-brand-dark-5 focus:border-brand-green transition-colors"
+                      className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 text-sm outline-none border border-brand-dark-5 focus:border-brand-accent transition-colors"
                     />
                   </div>
 
@@ -188,7 +188,7 @@ export default function AuthModal() {
                         <button
                           type="button"
                           onClick={() => reset("forgot")}
-                          className="text-[11px] text-gray-500 hover:text-brand-green transition-colors"
+                          className="text-[11px] text-gray-500 hover:text-brand-accent transition-colors"
                         >
                           Forgot password?
                         </button>
@@ -201,7 +201,7 @@ export default function AuthModal() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 pr-10 text-sm outline-none border border-brand-dark-5 focus:border-brand-green transition-colors"
+                        className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 pr-10 text-sm outline-none border border-brand-dark-5 focus:border-brand-accent transition-colors"
                       />
                       <button
                         type="button"
@@ -231,13 +231,13 @@ export default function AuthModal() {
                   <p className="text-center text-xs text-gray-500">
                     {authModalTab === "login" ? (
                       <>No account?{" "}
-                        <button type="button" onClick={() => reset("signup")} className="text-brand-green hover:underline">
+                        <button type="button" onClick={() => reset("signup")} className="text-brand-accent hover:underline">
                           Sign up free
                         </button>
                       </>
                     ) : (
                       <>Already have an account?{" "}
-                        <button type="button" onClick={() => reset("login")} className="text-brand-green hover:underline">
+                        <button type="button" onClick={() => reset("login")} className="text-brand-accent hover:underline">
                           Log in
                         </button>
                       </>

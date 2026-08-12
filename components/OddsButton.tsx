@@ -55,8 +55,8 @@ export default function OddsButton({ match, market, label }: Props) {
         // leave no room for the team names on a 390px screen.
         "relative w-[3.1rem] h-12 sm:w-16 sm:h-14 shrink-0 flex flex-col items-center justify-center rounded text-xs font-semibold transition-all border overflow-hidden",
         selected
-          ? "bg-brand-green text-black border-brand-green shadow-[0_0_8px_rgba(0,185,9,0.4)]"
-          : "bg-brand-dark-4 text-white border-transparent hover:border-brand-green"
+          ? "bg-brand-green text-black border-brand-accent shadow-[0_0_8px_rgba(0,185,9,0.4)]"
+          : "bg-brand-dark-4 text-white border-transparent hover:border-brand-accent"
       )}
     >
       {/* Label */}
@@ -68,7 +68,7 @@ export default function OddsButton({ match, market, label }: Props) {
       </span>
       {/* Percentage */}
       <span
-        className={clsx("text-sm font-bold leading-none z-10", selected ? "text-black" : "text-brand-green")}
+        className={clsx("text-sm font-bold leading-none z-10", selected ? "text-black" : "text-brand-accent")}
       >
         {pct}%
       </span>

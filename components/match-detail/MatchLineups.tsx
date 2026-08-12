@@ -18,7 +18,7 @@ interface Props {
 const POS_COLOR: Record<string, string> = {
   G: "bg-yellow-500/20 text-yellow-400",
   D: "bg-blue-500/20 text-blue-400",
-  M: "bg-green-500/20 text-brand-green",
+  M: "bg-green-500/20 text-brand-accent",
   F: "bg-red-500/20 text-red-400",
 };
 

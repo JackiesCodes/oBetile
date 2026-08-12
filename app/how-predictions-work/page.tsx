@@ -35,7 +35,7 @@ const CALIBRATION = [
 
 export default function HowPredictionsWorkPage() {
   return (
-    <div className="max-w-3xl mx-auto px-5 py-10 text-gray-300 text-sm leading-relaxed [&_h2]:text-white [&_h2]:font-bold [&_h2]:text-base [&_h2]:mt-8 [&_h2]:mb-2 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-3 [&_li]:mb-1 [&_a]:text-brand-green [&_a]:underline">
+    <div className="max-w-3xl mx-auto px-5 py-10 text-gray-300 text-sm leading-relaxed [&_h2]:text-white [&_h2]:font-bold [&_h2]:text-base [&_h2]:mt-8 [&_h2]:mb-2 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-3 [&_li]:mb-1 [&_a]:text-brand-accent [&_a]:underline">
       <h1 className="text-white text-2xl font-bold mb-1">How our predictions work</h1>
       <p className="text-gray-500 text-xs mb-6">Last measured 11 August 2026</p>
 
@@ -117,7 +117,7 @@ export default function HowPredictionsWorkPage() {
               <tr key={s.league} className="border-t border-brand-dark-5">
                 <td className="px-3 py-2 text-gray-300">{s.league}</td>
                 <td className="px-3 py-2 text-gray-500">{s.season}</td>
-                <td className="px-3 py-2 text-brand-green">{s.lift}</td>
+                <td className="px-3 py-2 text-brand-accent">{s.lift}</td>
               </tr>
             ))}
           </tbody>
@@ -155,7 +155,7 @@ export default function HowPredictionsWorkPage() {
               <tr key={c.band} className="border-t border-brand-dark-5">
                 <td className="px-3 py-2 text-gray-300">{c.band}</td>
                 <td className="px-3 py-2 text-gray-500">{c.said}</td>
-                <td className="px-3 py-2 text-brand-green">{c.happened}</td>
+                <td className="px-3 py-2 text-brand-accent">{c.happened}</td>
               </tr>
             ))}
           </tbody>

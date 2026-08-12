@@ -4,6 +4,157 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Theme palette.
+ *
+ * Every colour is a space-separated RGB triplet rather than a hex string, so
+ * Tailwind can compose it with an opacity modifier: `bg-brand-dark-2/60` still
+ * works because tailwind.config renders these as `rgb(var(--x) / <alpha-value>)`.
+ *
+ * The existing token names are kept deliberately. Around a thousand class
+ * usages across the app already say `bg-brand-dark-2` or `text-gray-500`, and
+ * pointing those names at variables re-themes all of them without touching a
+ * single component. The names read as "dark" and "gray" but mean "surface" and
+ * "muted text" — worth knowing before wondering why `text-gray-500` is a light
+ * grey in one theme and a dark one in the other.
+ *
+ * Ordering is by prominence, not lightness: --muted-200 is always the most
+ * prominent muted text and --muted-600 the faintest, in both themes.
+ *
+ * Each palette's values are written once here. The blocks further down only
+ * re-point the live tokens at one set or the other, so a new token cannot be
+ * added to one theme and forgotten in another.
+ */
+:root {
+  --dark-surface-0: 17 17 17;
+  --dark-surface-1: 26 26 26;
+  --dark-surface-2: 34 34 34;
+  --dark-surface-3: 42 42 42;
+  --dark-surface-4: 51 51 51;
+  --dark-fg: 255 255 255;
+  --dark-muted-200: 229 231 235;
+  --dark-muted-300: 209 213 219;
+  --dark-muted-400: 156 163 175;
+  --dark-muted-500: 107 114 128;
+  --dark-muted-600: 75 85 99;
+  --dark-accent: 22 163 74;
+  --dark-accent-on-surface: 22 163 74;
+  --dark-accent-hover: 34 197 94;
+  --dark-accent-light: 220 252 231;
+  /* Deliberately darker than the page it sits above. */
+  --dark-header: 0 0 0;
+  --dark-scrollbar-track: 26 26 26;
+  --dark-scrollbar-thumb: 51 51 51;
+
+  --light-surface-0: 255 255 255;
+  --light-surface-1: 247 248 250;
+  --light-surface-2: 238 240 243;
+  --light-surface-3: 228 231 235;
+  --light-surface-4: 209 214 220;
+  --light-fg: 15 17 21;
+  /* Every step still clears 4.5:1 against the lightest surface it is used on,
+     so muted text stays readable rather than merely decorative. The dark
+     palette above predates this and does not yet meet the same bar. */
+  --light-muted-200: 31 41 55;
+  --light-muted-300: 55 65 81;
+  --light-muted-400: 75 85 99;
+  --light-muted-500: 86 93 104;
+  --light-muted-600: 98 105 115;
+  /* The accent does two jobs with opposing needs, so it is two tokens.
+     As a button fill it must stay light enough for the black label on it
+     (#16a34a gives 5.9:1); as text or a border on a pale surface it must be
+     dark enough to read (#16a34a manages only 3.4:1 on white, so that role
+     gets a deeper green). In the dark theme both are the same colour. */
+  --light-accent: 22 163 74;
+  --light-accent-on-surface: 21 128 61;
+  --light-accent-hover: 34 197 94;
+  --light-accent-light: 20 83 45;
+  --light-header: 255 255 255;
+  --light-scrollbar-track: 238 240 243;
+  --light-scrollbar-thumb: 190 196 203;
+}
+
+/* The live tokens. Dark is the default so that a visitor with no stored
+   preference, no JavaScript and no system preference still gets the theme this
+   site was designed in. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-0: var(--dark-surface-0);
+  --surface-1: var(--dark-surface-1);
+  --surface-2: var(--dark-surface-2);
+  --surface-3: var(--dark-surface-3);
+  --surface-4: var(--dark-surface-4);
+  --fg: var(--dark-fg);
+  --muted-200: var(--dark-muted-200);
+  --muted-300: var(--dark-muted-300);
+  --muted-400: var(--dark-muted-400);
+  --muted-500: var(--dark-muted-500);
+  --muted-600: var(--dark-muted-600);
+  --accent: var(--dark-accent);
+  --accent-on-surface: var(--dark-accent-on-surface);
+  --accent-hover: var(--dark-accent-hover);
+  --accent-light: var(--dark-accent-light);
+  --header: var(--dark-header);
+  --scrollbar-track: var(--dark-scrollbar-track);
+  --scrollbar-thumb: var(--dark-scrollbar-thumb);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-0: var(--light-surface-0);
+  --surface-1: var(--light-surface-1);
+  --surface-2: var(--light-surface-2);
+  --surface-3: var(--light-surface-3);
+  --surface-4: var(--light-surface-4);
+  --fg: var(--light-fg);
+  --muted-200: var(--light-muted-200);
+  --muted-300: var(--light-muted-300);
+  --muted-400: var(--light-muted-400);
+  --muted-500: var(--light-muted-500);
+  --muted-600: var(--light-muted-600);
+  --accent: var(--light-accent);
+  --accent-on-surface: var(--light-accent-on-surface);
+  --accent-hover: var(--light-accent-hover);
+  --accent-light: var(--light-accent-light);
+  --header: var(--light-header);
+  --scrollbar-track: var(--light-scrollbar-track);
+  --scrollbar-thumb: var(--light-scrollbar-thumb);
+}
+
+/*
+ * Visitors who have never chosen a theme, with JavaScript disabled, still get
+ * the one their system asks for. The inline script in the layout sets an
+ * explicit data-theme before paint, so this only governs the no-JS case.
+ */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --surface-0: var(--light-surface-0);
+    --surface-1: var(--light-surface-1);
+    --surface-2: var(--light-surface-2);
+    --surface-3: var(--light-surface-3);
+    --surface-4: var(--light-surface-4);
+    --fg: var(--light-fg);
+    --muted-200: var(--light-muted-200);
+    --muted-300: var(--light-muted-300);
+    --muted-400: var(--light-muted-400);
+    --muted-500: var(--light-muted-500);
+    --muted-600: var(--light-muted-600);
+    --accent: var(--light-accent);
+    --accent-on-surface: var(--light-accent-on-surface);
+  --accent-on-surface: var(--light-accent-on-surface);
+    --accent-hover: var(--light-accent-hover);
+    --accent-light: var(--light-accent-light);
+    --header: var(--light-header);
+    --scrollbar-track: var(--light-scrollbar-track);
+    --scrollbar-thumb: var(--light-scrollbar-thumb);
+  }
+}
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -13,9 +164,23 @@
 html, body {
   max-width: 100vw;
   overflow-x: hidden;
-  background-color: #111111;
-  color: #ffffff;
+  background-color: rgb(var(--surface-0));
+  color: rgb(var(--fg));
   font-family: 'Rajdhani', 'Inter', sans-serif;
+}
+
+/* Only the deliberate switch animates. Without this guard every themed surface
+   would also cross-fade on first paint and on route changes. */
+html.theme-transition,
+html.theme-transition * {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transition,
+  html.theme-transition * {
+    transition: none;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -23,14 +188,14 @@ html, body {
   height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: rgb(var(--scrollbar-track));
 }
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: rgb(var(--scrollbar-thumb));
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #16a34a;
+  background: rgb(var(--accent));
 }
 
 @layer utilities {

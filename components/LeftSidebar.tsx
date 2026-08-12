@@ -61,7 +61,7 @@ function LeftSidebarDefault() {
             )}
           >
             <span className="flex items-center gap-2">
-              <span className="text-brand-green">{item.icon}</span>
+              <span className="text-brand-accent">{item.icon}</span>
               {item.label}
             </span>
             {item.badge && (

@@ -131,10 +131,10 @@ export default function MatchRightPanel() {
                   key={row.team.id}
                   className={clsx(
                     "flex items-center px-3 py-1 text-[10px]",
-                    isHL ? "bg-brand-green/10 border-l-2 border-l-brand-green" : "hover:bg-brand-dark-3"
+                    isHL ? "bg-brand-green/10 border-l-2 border-l-brand-accent" : "hover:bg-brand-dark-3"
                   )}
                 >
-                  <span className={clsx("w-5 shrink-0 font-semibold", isHL ? "text-brand-green" : "text-gray-500")}>
+                  <span className={clsx("w-5 shrink-0 font-semibold", isHL ? "text-brand-accent" : "text-gray-500")}>
                     {row.rank}
                   </span>
                   <div className="flex items-center gap-1 flex-1 min-w-0">

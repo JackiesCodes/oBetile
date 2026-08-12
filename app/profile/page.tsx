@@ -33,7 +33,7 @@ interface RecentPick {
 }
 
 const PICK_LABEL: Record<string, string> = { home: "Home Win", draw: "Draw", away: "Away Win" };
-const PICK_COLOR: Record<string, string> = { home: "text-brand-green", draw: "text-gray-400", away: "text-red-400" };
+const PICK_COLOR: Record<string, string> = { home: "text-brand-accent", draw: "text-gray-400", away: "text-red-400" };
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
@@ -123,7 +123,7 @@ export default function ProfilePage() {
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-brand-dark-1 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -180,7 +180,7 @@ export default function ProfilePage() {
             {!editingUsername && (
               <button
                 onClick={() => setEditingUsername(true)}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-brand-green transition-colors"
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-brand-accent transition-colors"
               >
                 <Pencil size={11} /> Edit
               </button>
@@ -195,7 +195,7 @@ export default function ProfilePage() {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Choose a username"
                 maxLength={30}
-                className="flex-1 bg-brand-dark-4 text-white rounded-lg px-3 py-2 text-sm outline-none border border-brand-dark-5 focus:border-brand-green transition-colors"
+                className="flex-1 bg-brand-dark-4 text-white rounded-lg px-3 py-2 text-sm outline-none border border-brand-dark-5 focus:border-brand-accent transition-colors"
               />
               <button
                 onClick={saveUsername}
@@ -216,7 +216,7 @@ export default function ProfilePage() {
             <p className="text-white text-sm">{profile?.username || <span className="text-gray-600 italic">Not set</span>}</p>
           )}
           {saveMsg && (
-            <p className={`text-xs mt-2 ${saveMsg === "Saved!" ? "text-brand-green" : "text-red-400"}`}>{saveMsg}</p>
+            <p className={`text-xs mt-2 ${saveMsg === "Saved!" ? "text-brand-accent" : "text-red-400"}`}>{saveMsg}</p>
           )}
         </div>
 
@@ -231,7 +231,7 @@ export default function ProfilePage() {
                 <Link
                   key={pick.id}
                   href={`/match/${pick.fixture_id}`}
-                  className="flex items-center gap-3 bg-brand-dark-3 rounded-lg px-3 py-2.5 border border-transparent hover:border-brand-green/40 transition-colors"
+                  className="flex items-center gap-3 bg-brand-dark-3 rounded-lg px-3 py-2.5 border border-transparent hover:border-brand-accent/40 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-300 truncate">{pick.home_team} vs {pick.away_team}</p>
@@ -245,7 +245,7 @@ export default function ProfilePage() {
                     <span
                       className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
                         pick.result === "correct"
-                          ? "bg-brand-green/15 text-brand-green"
+                          ? "bg-brand-green/15 text-brand-accent"
                           : "bg-red-500/15 text-red-400"
                       }`}
                     >

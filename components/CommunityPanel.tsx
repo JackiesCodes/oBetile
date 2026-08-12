@@ -150,7 +150,7 @@ export default function CommunityPanel() {
     <div className="flex-1 flex flex-col overflow-hidden bg-brand-dark">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-dark-5 bg-brand-dark-2 shrink-0">
-        <MessageCircle size={16} className="text-brand-green" />
+        <MessageCircle size={16} className="text-brand-accent" />
         <span className="text-sm font-bold text-white">Community</span>
         <span className="text-xs text-gray-500 ml-1">— Share your thoughts on today&apos;s matches</span>
       </div>
@@ -169,7 +169,7 @@ export default function CommunityPanel() {
               maxLength={500}
               rows={3}
               placeholder="What's your take on today's matches? Share your picks…"
-              className="w-full bg-brand-dark-3 border border-brand-dark-5 focus:border-brand-green rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 resize-none outline-none transition-colors"
+              className="w-full bg-brand-dark-3 border border-brand-dark-5 focus:border-brand-accent rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 resize-none outline-none transition-colors"
             />
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-gray-600">
@@ -202,7 +202,7 @@ export default function CommunityPanel() {
       <div className="flex-1 overflow-y-auto">
         {loading && posts.length === 0 && (
           <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
@@ -233,13 +233,13 @@ export default function CommunityPanel() {
                     className={clsx(
                       "flex items-center gap-1.5 mt-2 text-[11px] transition-colors",
                       likedIds.has(post.id)
-                        ? "text-brand-green"
-                        : "text-gray-600 hover:text-brand-green"
+                        ? "text-brand-accent"
+                        : "text-gray-600 hover:text-brand-accent"
                     )}
                   >
                     <Heart
                       size={13}
-                      className={likedIds.has(post.id) ? "fill-brand-green" : ""}
+                      className={likedIds.has(post.id) ? "fill-brand-accent" : ""}
                     />
                     {post.likes_count > 0 && <span>{post.likes_count}</span>}
                   </button>
@@ -258,7 +258,7 @@ export default function CommunityPanel() {
                 setPage(nextPage);
                 loadPosts(nextPage);
               }}
-              className="text-brand-green text-xs font-semibold hover:underline"
+              className="text-brand-accent text-xs font-semibold hover:underline"
             >
               Load more
             </button>

@@ -141,7 +141,7 @@ export default function MatchLeftPanel() {
               <div key={f.fixture.id} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] border-b border-brand-dark-5 last:border-0">
                 <span className="text-gray-600 w-12 shrink-0">{date}</span>
                 <span className="flex-1 text-right text-gray-300 truncate">{f.teams.home.name}</span>
-                <span className={clsx("font-bold px-1 shrink-0 tabular-nums", isHomeWin ? "text-brand-green" : isAwayWin ? "text-red-400" : "text-gray-400")}>
+                <span className={clsx("font-bold px-1 shrink-0 tabular-nums", isHomeWin ? "text-brand-accent" : isAwayWin ? "text-red-400" : "text-gray-400")}>
                   {f.goals.home ?? "–"}-{f.goals.away ?? "–"}
                 </span>
                 <span className="flex-1 text-left text-gray-300 truncate">{f.teams.away.name}</span>

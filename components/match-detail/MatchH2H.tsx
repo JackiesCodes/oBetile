@@ -48,7 +48,7 @@ export default function MatchH2H({ fixtures, homeTeamId, awayTeamId }: Props) {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-2 text-center bg-brand-dark-3 rounded-xl p-3">
         <div>
-          <div className="text-xl font-bold text-brand-green">{homeWins}</div>
+          <div className="text-xl font-bold text-brand-accent">{homeWins}</div>
           <div className="text-[10px] text-gray-500 mt-0.5 truncate">{homeTeam} wins</div>
         </div>
         <div>
@@ -72,7 +72,7 @@ export default function MatchH2H({ fixtures, homeTeamId, awayTeamId }: Props) {
               <span className="text-gray-600 w-20 shrink-0 text-[10px]">{date}</span>
               <span className="flex-1 text-right text-gray-200 truncate font-medium">{f.teams.home.name}</span>
               <span className={`font-bold px-2 py-0.5 rounded text-sm tabular-nums ${
-                isHomeWin ? "text-brand-green" : isAwayWin ? "text-red-400" : "text-gray-300"
+                isHomeWin ? "text-brand-accent" : isAwayWin ? "text-red-400" : "text-gray-300"
               }`}>
                 {f.goals.home ?? "–"} – {f.goals.away ?? "–"}
               </span>

@@ -50,7 +50,7 @@ export default function ResetPasswordPage() {
   if (hasSession === null) {
     return (
       <div className="min-h-screen bg-brand-dark-1 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-brand-green border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -62,7 +62,7 @@ export default function ResetPasswordPage() {
         <div className="px-6 pt-6 pb-4 border-b border-brand-dark-5">
           <div className="flex font-rajdhani text-xl font-semibold mb-1">
             <span className="text-white">o</span>
-            <span className="text-brand-green">Bet</span>
+            <span className="text-brand-accent">Bet</span>
             <span className="text-white">ile</span>
           </div>
           <p className="text-gray-400 text-sm">Set a new password</p>
@@ -104,7 +104,7 @@ export default function ResetPasswordPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 pr-10 text-sm outline-none border border-brand-dark-5 focus:border-brand-green transition-colors"
+                    className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 pr-10 text-sm outline-none border border-brand-dark-5 focus:border-brand-accent transition-colors"
                   />
                   <button
                     type="button"
@@ -125,7 +125,7 @@ export default function ResetPasswordPage() {
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 text-sm outline-none border border-brand-dark-5 focus:border-brand-green transition-colors"
+                  className="w-full bg-brand-dark-4 text-white rounded-lg px-3 py-2.5 text-sm outline-none border border-brand-dark-5 focus:border-brand-accent transition-colors"
                 />
               </div>
 

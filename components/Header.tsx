@@ -6,6 +6,7 @@ import { Search, Menu, X, Bell, LogOut, User } from "lucide-react";
 import { usePredictions } from "@/context/PredictionContext";
 import { useAuth } from "@/context/AuthContext";
 import NotificationsPanel from "@/components/NotificationsPanel";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface Props {
   onSearchOpen: () => void;
@@ -35,11 +36,11 @@ export default function Header({ onSearchOpen }: Props) {
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "";
 
   return (
-    <header className="h-14 bg-black border-b border-brand-dark-5 flex items-center px-4 gap-3 sticky top-0 z-50">
+    <header className="h-14 bg-brand-header border-b border-brand-dark-5 flex items-center px-4 gap-3 sticky top-0 z-50">
       {/* Logo */}
       <Link href="/" className="flex items-center shrink-0">
         <span className="font-rajdhani font-semibold text-2xl text-white leading-none">o</span>
-        <span className="font-rajdhani font-semibold text-2xl text-brand-green leading-none">Bet</span>
+        <span className="font-rajdhani font-semibold text-2xl text-brand-accent leading-none">Bet</span>
         <span className="font-rajdhani font-semibold text-2xl text-white leading-none">ile</span>
       </Link>
 
@@ -74,9 +75,9 @@ export default function Header({ onSearchOpen }: Props) {
       <div className="flex items-center gap-2">
         {/* Mobile prediction count badge */}
         {items.length > 0 && (
-          <div className="xl:hidden flex items-center gap-1 bg-brand-dark-4 border border-brand-green/60 text-white text-xs font-bold px-2.5 py-1.5 rounded-full">
+          <div className="xl:hidden flex items-center gap-1 bg-brand-dark-4 border border-brand-accent/60 text-white text-xs font-bold px-2.5 py-1.5 rounded-full">
             <span>🔮</span>
-            <span className="text-brand-green">{items.length}</span>
+            <span className="text-brand-accent">{items.length}</span>
           </div>
         )}
 
@@ -137,6 +138,8 @@ export default function Header({ onSearchOpen }: Props) {
         >
           <Search size={18} />
         </button>
+
+        <ThemeToggle />
 
         {/* Bell / Notifications */}
         <div className="relative hidden sm:block">

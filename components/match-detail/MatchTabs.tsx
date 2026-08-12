@@ -29,7 +29,7 @@ export default function MatchTabs({ active, onChange }: Props) {
             className={clsx(
               "px-4 py-3 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 shrink-0",
               active === tab.id
-                ? "text-white border-brand-green"
+                ? "text-white border-brand-accent"
                 : "text-gray-500 border-transparent hover:text-gray-300"
             )}
           >

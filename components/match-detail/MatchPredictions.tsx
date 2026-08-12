@@ -53,7 +53,7 @@ export default function MatchPredictions({ prediction }: Props) {
     <div className="p-4 space-y-5">
       {/* Winner prediction */}
       {winner && (
-        <div className="bg-brand-dark-3 rounded-xl p-4 border border-brand-green/20">
+        <div className="bg-brand-dark-3 rounded-xl p-4 border border-brand-accent/20">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">🤖</span>
             <span className="text-xs text-gray-400 uppercase font-semibold">AI Prediction</span>
@@ -64,7 +64,7 @@ export default function MatchPredictions({ prediction }: Props) {
           {winner.comment && (
             <p className="text-gray-400 text-sm mt-1">{winner.comment}</p>
           )}
-          <p className="text-brand-green text-xs mt-2 italic">{advice}</p>
+          <p className="text-brand-accent text-xs mt-2 italic">{advice}</p>
         </div>
       )}
 
@@ -108,7 +108,7 @@ export default function MatchPredictions({ prediction }: Props) {
 
             <div className="grid grid-cols-3 gap-1 text-center">
               <div>
-                <div className="text-brand-green font-bold text-sm">{team.last_5.win}</div>
+                <div className="text-brand-accent font-bold text-sm">{team.last_5.win}</div>
                 <div className="text-[9px] text-gray-600">W</div>
               </div>
               <div>

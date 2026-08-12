@@ -66,7 +66,7 @@ export default function MatchHeader({ fixture, league, teams, goals, score }: Ma
                 {isLive ? (
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-brand-green animate-pulse" />
-                    <span className="text-brand-green text-xs font-bold">
+                    <span className="text-brand-accent text-xs font-bold">
                       {fixture.status.short === "HT" ? "Half Time" : `${fixture.status.elapsed}'`}
                     </span>
                   </div>
