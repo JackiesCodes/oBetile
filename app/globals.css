@@ -35,8 +35,13 @@
   --dark-muted-200: 229 231 235;
   --dark-muted-300: 209 213 219;
   --dark-muted-400: 156 163 175;
-  --dark-muted-500: 107 114 128;
-  --dark-muted-600: 75 85 99;
+  /* Lifted from #6b7280 and #4b5563, which sat at 2.97:1 and 2.30:1 against the
+     surfaces they are actually drawn on — below the point where many people can
+     read them at all, and this is the tier the footer disclaimer uses. Each now
+     clears 4.5:1. The step between tiers is smaller as a result, so tertiary
+     text recedes less than it used to; that is the deliberate trade. */
+  --dark-muted-500: 138 145 159;
+  --dark-muted-600: 121 131 145;
   --dark-accent: 22 163 74;
   --dark-accent-on-surface: 22 163 74;
   --dark-accent-hover: 34 197 94;
