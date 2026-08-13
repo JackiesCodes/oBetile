@@ -16,7 +16,6 @@ import { countUnavailable, type APIInjuryRow } from "@/lib/availability";
  */
 
 const INJURIES_TTL = 1800;
-const MAX_PAGES = 20;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -33,32 +32,24 @@ export async function GET(req: NextRequest) {
   try {
     const season = searchParams.get("season") ?? (await resolveSeason(leagueId));
 
-    const rows: APIInjuryRow[] = [];
-    let page = 1;
-    let pagesAvailable = 1;
+    // Unlike /odds, this endpoint takes no page parameter — passing one is
+    // rejected outright with "The Page field do not exist". A league-season
+    // returns in a single response.
+    const { response, resultCount } = await apiFetchRaw<APIInjuryRow[]>(
+      "/injuries",
+      { league: String(leagueId), season },
+      INJURIES_TTL
+    );
 
-    // Sequential, not parallel: a burst of concurrent calls is what got this
-    // API to return 429 earlier in the project's life.
-    while (page <= Math.min(pagesAvailable, MAX_PAGES)) {
-      const { response, paging } = await apiFetchRaw<APIInjuryRow[]>(
-        "/injuries",
-        { league: String(leagueId), season, page: String(page) },
-        INJURIES_TTL
-      );
-      rows.push(...(response ?? []));
-      pagesAvailable = paging?.total ?? 1;
-      page++;
-    }
-
+    const rows = response ?? [];
     const byFixture = countUnavailable(rows);
 
     return NextResponse.json(byFixture, {
       headers: {
         "Cache-Control": `s-maxage=${INJURIES_TTL}, stale-while-revalidate=300`,
         "x-injuries-rows": String(rows.length),
+        "x-injuries-reported": String(resultCount ?? rows.length),
         "x-injuries-fixtures": String(Object.keys(byFixture).length),
-        "x-injuries-pages": String(page - 1),
-        "x-injuries-pages-available": String(pagesAvailable),
       },
     });
   } catch (e) {
