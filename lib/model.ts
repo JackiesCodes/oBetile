@@ -258,58 +258,6 @@ function applyForm(lambda: number, form: string | null): number {
 }
 
 /**
- * Who a side is missing for a fixture.
- *
- * Deliberately just a count. The provider's injury list does not say how much
- * a player normally plays, and a squad listing eight fringe names as unavailable
- * is not weakened the way one listing its first-choice striker is. Until that
- * distinction can be measured, treating every absence alike is the honest
- * simplification — and the weight below is set low to match how little the
- * count actually tells us.
- */
-export interface Availability {
-  /** Players ruled out, injured or suspended. */
-  out: number;
-}
-
-/**
- * How much one absent player moves expected goals. Small on purpose: see above.
- * Its real value is decided by scripts/backtest.ts, not by taste.
- */
-const AVAILABILITY_WEIGHT = 0.03;
-
-/** However long the injury list, a side is never reduced past this. */
-const MAX_DEPLETION = 0.18;
-
-/** How weakened a side is, 0 (full strength) to MAX_DEPLETION. */
-export function depletion(a: Availability | null | undefined): number {
-  if (!a || !Number.isFinite(a.out) || a.out <= 0) return 0;
-  return Math.min(MAX_DEPLETION, a.out * AVAILABILITY_WEIGHT);
-}
-
-/**
- * Scale both sides' expected goals by who is missing.
- *
- * A depleted side scores less, and concedes more, so each absence pushes the
- * scoreline twice: once through the weakened team's attack and once through the
- * opponent's. Applied after form, before the Poisson grid.
- */
-export function applyAvailability(
-  lambdas: { home: number; away: number },
-  home: Availability | null | undefined,
-  away: Availability | null | undefined
-): { home: number; away: number } {
-  const dHome = depletion(home);
-  const dAway = depletion(away);
-  if (dHome === 0 && dAway === 0) return lambdas;
-
-  return {
-    home: clamp(lambdas.home * (1 - dHome) * (1 + dAway), MIN_LAMBDA, MAX_LAMBDA),
-    away: clamp(lambdas.away * (1 - dAway) * (1 + dHome), MIN_LAMBDA, MAX_LAMBDA),
-  };
-}
-
-/**
  * Blend the model's probabilities toward what past meetings suggest.
  *
  * Only applied with enough meetings to mean anything, and weighted low: two
@@ -365,25 +313,13 @@ export interface PredictionInput {
   away: TeamRecord;
   table: TeamRecord[];
   h2h?: HeadToHead | null;
-  /**
-   * Who each side is missing. Optional, and omitted means "not known" rather
-   * than "nobody out" — a fixture with no injury data must predict exactly as
-   * it did before this existed, so the backtest can compare the two fairly.
-   */
-  availability?: { home?: Availability | null; away?: Availability | null } | null;
 }
 
 /**
  * Win, draw and loss probabilities for a fixture, or null when the inputs are
  * too thin to say anything useful.
  */
-export function predictFixture({
-  home,
-  away,
-  table,
-  h2h,
-  availability,
-}: PredictionInput): Probabilities | null {
+export function predictFixture({ home, away, table, h2h }: PredictionInput): Probabilities | null {
   if (totalPlayed(home) < MIN_MATCHES_PLAYED || totalPlayed(away) < MIN_MATCHES_PLAYED) {
     return null;
   }
@@ -394,14 +330,10 @@ export function predictFixture({
   const lambdas = expectedGoals(home, away, avg);
   if (!lambdas) return null;
 
-  const adjusted = applyAvailability(
-    {
-      home: applyForm(lambdas.home, home.form),
-      away: applyForm(lambdas.away, away.form),
-    },
-    availability?.home,
-    availability?.away
-  );
+  const adjusted = {
+    home: applyForm(lambdas.home, home.form),
+    away: applyForm(lambdas.away, away.form),
+  };
 
   const raw = applyHeadToHead(outcomeProbabilities(adjusted.home, adjusted.away), h2h ?? null);
 

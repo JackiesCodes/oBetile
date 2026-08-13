@@ -7,9 +7,7 @@ import {
   leagueAverages,
   expectedGoals,
   applyHeadToHead,
-  applyAvailability,
   applyTemperature,
-  depletion,
   lowScoreAdjustment,
   predictFixture,
   toPercentages,
@@ -379,82 +377,5 @@ describe("applyTemperature", () => {
     // Re-tempering an already-tempered figure must move it further, proving
     // the value returned was not the raw one.
     expect(applyTemperature(untempered, 1.25).home).toBeLessThan(p.home);
-  });
-});
-
-describe("availability", () => {
-  it("treats no data as full strength, not as nobody injured", () => {
-    // A fixture with no injury list must predict exactly as it did before this
-    // signal existed, or the backtest comparison is meaningless.
-    expect(depletion(null)).toBe(0);
-    expect(depletion(undefined)).toBe(0);
-    expect(depletion({ out: 0 })).toBe(0);
-  });
-
-  it("grows with the number of players missing", () => {
-    expect(depletion({ out: 3 })).toBeGreaterThan(depletion({ out: 1 }));
-  });
-
-  it("stops growing, because a long list is mostly fringe players", () => {
-    expect(depletion({ out: 30 })).toBe(depletion({ out: 12 }));
-    expect(depletion({ out: 30 })).toBeLessThan(0.2);
-  });
-
-  it("ignores nonsense counts rather than throwing", () => {
-    expect(depletion({ out: -4 })).toBe(0);
-    expect(depletion({ out: NaN })).toBe(0);
-  });
-
-  it("lowers a depleted side's goals and raises its opponent's", () => {
-    const base = { home: 1.6, away: 1.2 };
-    const out = applyAvailability(base, { out: 5 }, null);
-    expect(out.home).toBeLessThan(base.home);
-    expect(out.away).toBeGreaterThan(base.away);
-  });
-
-  it("cancels out when both sides are equally depleted", () => {
-    const base = { home: 1.6, away: 1.2 };
-    const out = applyAvailability(base, { out: 4 }, { out: 4 });
-    // Each side loses as much attack as it gains from the other's absences.
-    expect(out.home / out.away).toBeCloseTo(base.home / base.away, 10);
-  });
-
-  it("does nothing at all when neither side has data", () => {
-    const base = { home: 1.6, away: 1.2 };
-    expect(applyAvailability(base, null, undefined)).toEqual(base);
-  });
-
-  it("changes a prediction only when availability is supplied", () => {
-    const table = flatTable;
-    const without = predictFixture({ home: team(1), away: team(2), table })!;
-    const withNone = predictFixture({
-      home: team(1),
-      away: team(2),
-      table,
-      availability: null,
-    })!;
-    expect(withNone).toEqual(without);
-
-    const depleted = predictFixture({
-      home: team(1),
-      away: team(2),
-      table,
-      availability: { home: { out: 6 }, away: { out: 0 } },
-    })!;
-    expect(depleted.home).toBeLessThan(without.home);
-    expect(depleted.away).toBeGreaterThan(without.away);
-  });
-
-  it("cannot swing a fixture on injuries alone", () => {
-    // The count says nothing about who is missing, so it must nudge rather than
-    // decide. An empty treatment room against a full one stays a nudge.
-    const without = predictFixture({ home: team(1), away: team(2), table: flatTable })!;
-    const worst = predictFixture({
-      home: team(1),
-      away: team(2),
-      table: flatTable,
-      availability: { home: { out: 25 }, away: { out: 0 } },
-    })!;
-    expect(without.home - worst.home).toBeLessThan(0.15);
   });
 });

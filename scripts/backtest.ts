@@ -11,10 +11,6 @@
  *   npx tsx scripts/backtest.ts <path-to-fixtures.json> [label]
  *   npx tsx scripts/backtest.ts --league 39 --season 2025 [--base https://o-betile.vercel.app]
  *
- * Add --injuries to also score the model with team availability folded in, and
- * report both side by side. Without real gain on held-out seasons that signal
- * should not ship, so the comparison is the point of the flag.
- *
  * The second form pulls the season straight from the deployed fixtures route,
  * so the numbers in the commit message can be reproduced without a stored
  * dataset or an API key.
@@ -22,7 +18,6 @@
 
 import { readFileSync } from "fs";
 import { predictFixture, type TeamRecord, type Probabilities } from "@/lib/model";
-import { availabilityFor, type UnavailableByFixture } from "@/lib/availability";
 
 interface Row {
   id: number;
@@ -181,36 +176,8 @@ async function loadRows(): Promise<{ rows: Row[]; label: string }> {
   return { label: arg("--label") ?? process.argv[3] ?? file, rows: JSON.parse(readFileSync(file, "utf8")) };
 }
 
-/**
- * Who was unavailable, keyed by fixture.
- *
- * Read from a file, or pulled from the bulk injuries route. Empty when the flag
- * is absent, which makes every fixture predict exactly as it does today.
- */
-async function loadInjuries(): Promise<UnavailableByFixture> {
-  if (process.argv.indexOf("--injuries") === -1) return {};
-
-  const file = arg("--injuries");
-  if (file && !file.startsWith("--")) {
-    return JSON.parse(readFileSync(file, "utf8")) as UnavailableByFixture;
-  }
-
-  const league = arg("--league");
-  const season = arg("--season");
-  if (!league || !season) {
-    throw new Error("--injuries needs either a file, or --league and --season to fetch from");
-  }
-  const base = arg("--base") ?? "https://o-betile.vercel.app";
-  const url = `${base}/api/football/injuries?league=${league}&season=${season}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
-  return (await res.json()) as UnavailableByFixture;
-}
-
 async function main() {
   const loaded = await loadRows();
-  const injuries = await loadInjuries();
-  const useInjuries = Object.keys(injuries).length > 0;
   const label = loaded.label;
   const rows: Row[] = loaded.rows
     .filter((r: Row) => r.status === "FT" && r.gh !== null && r.ga !== null)
@@ -218,10 +185,8 @@ async function main() {
 
   const running = new Map<number, Running>();
   const modelScored: Scored[] = [];
-  const injuryScored: Scored[] = [];
   const covered: Row[] = [];
   let skipped = 0;
-  let withAvailability = 0;
 
   for (const r of rows) {
     const home = running.get(r.h) ?? blank(r.h);
@@ -235,19 +200,6 @@ async function main() {
     if (p) {
       modelScored.push({ p, actual });
       covered.push(r);
-
-      if (useInjuries) {
-        const availability = availabilityFor(injuries, r.id, r.h, r.a);
-        if (availability) withAvailability++;
-        const withInjuries = predictFixture({
-          home: toRecord(home),
-          away: toRecord(away),
-          table,
-          availability,
-        });
-        // Same fixture set for both, or the comparison is not a comparison.
-        injuryScored.push({ p: withInjuries ?? p, actual });
-      }
     } else {
       skipped++;
     }
@@ -286,23 +238,6 @@ async function main() {
 
   const lift = ((baseRps - modelRps) / baseRps) * 100;
   console.log(`\nRPS improvement over baseline: ${lift.toFixed(1)}%  ${lift > 0 ? "(model is better)" : "(MODEL IS WORSE — do not ship)"}`);
-
-  if (useInjuries) {
-    const injuryRps = summarise("model + availability", injuryScored);
-    const delta = ((modelRps - injuryRps) / modelRps) * 100;
-    console.log(
-      `\navailability data on ${withAvailability}/${modelScored.length} fixtures ` +
-        `(${((withAvailability / modelScored.length) * 100).toFixed(0)}%)`
-    );
-    console.log(
-      `availability changes RPS by ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}%  ` +
-        (delta > 0.5
-          ? "(worth shipping)"
-          : delta < -0.5
-            ? "(WORSE — do not ship)"
-            : "(no real difference — do not ship complexity that buys nothing)")
-    );
-  }
 
   calibration(modelScored);
 }
