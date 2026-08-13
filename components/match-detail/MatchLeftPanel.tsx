@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import clsx from "clsx";
 import { useMatchDetail } from "@/context/MatchDetailContext";
+import MatchTeamNews from "@/components/match-detail/MatchTeamNews";
 
 const FINISHED = new Set(["FT", "AET", "PEN"]);
 
@@ -35,7 +36,7 @@ export default function MatchLeftPanel() {
   const { matchDetail, setMatchDetail } = useMatchDetail();
   if (!matchDetail) return null;
 
-  const { fixture, events, lineups, h2h } = matchDetail;
+  const { fixture, events, lineups, h2h, injuries } = matchDetail;
   const homeId = fixture.teams.home.id;
   const awayId = fixture.teams.away.id;
   const status = fixture.fixture.status.short;
@@ -100,6 +101,18 @@ export default function MatchLeftPanel() {
       </Section>
 
       {/* Lineups */}
+      <Section title="Team news" defaultOpen={isUpcoming}>
+        <MatchTeamNews
+          injuries={injuries}
+          homeTeamId={homeId}
+          awayTeamId={awayId}
+          homeTeamName={fixture.teams.home.name}
+          awayTeamName={fixture.teams.away.name}
+          fixtureStatus={status}
+          compact
+        />
+      </Section>
+
       <Section title="Lineups" defaultOpen={false}>
         {!home && !away ? (
           <p className="px-3 pb-2 text-[11px] text-gray-600">

@@ -47,6 +47,7 @@ describe("components are actually rendered", () => {
     ["LeagueSection", "components/LeagueSection.tsx"],
     ["Footer", "components/Footer.tsx"],
     ["AuthModal", "components/AuthModal.tsx"],
+    ["MatchTeamNews", "components/match-detail/MatchTeamNews.tsx"],
   ];
 
   it.each(mustBeMounted)("%s is rendered somewhere", (name, file) => {
@@ -133,5 +134,40 @@ describe("what the site claims about its percentages", () => {
     // still exist to re-check it against.
     expect(method).toMatch(/scripts\/backtest\.ts/);
     expect(() => readFileSync(path.join(ROOT, "scripts/backtest.ts"), "utf8")).not.toThrow();
+  });
+});
+
+/**
+ * Team news is presentation only. The same injury data was measured twice as a
+ * prediction input and rejected both times (docs/model-experiments.md), so a
+ * future change that quietly routes it back into the model would invalidate the
+ * published accuracy figures without anyone noticing.
+ */
+describe("team news stays out of the model", () => {
+  const model = readFileSync(path.join(ROOT, "lib/model.ts"), "utf8");
+  const teamNews = readFileSync(
+    path.join(ROOT, "components/match-detail/MatchTeamNews.tsx"),
+    "utf8"
+  );
+
+  it("keeps the model free of availability inputs", () => {
+    for (const banned of [/availability/i, /\binjur/i, /missing\??:/]) {
+      expect(model).not.toMatch(banned);
+    }
+  });
+
+  it("shows both sides of the fixture, not just one", () => {
+    expect(teamNews).toMatch(/homeTeamId/);
+    expect(teamNews).toMatch(/awayTeamId/);
+  });
+
+  it("tells the reader the list does not move the percentages", () => {
+    expect(teamNews).toMatch(/does not affect the win percentages/);
+  });
+
+  it("does not call international duty an injury", () => {
+    // The provider mixes injuries, suspensions and international call-ups under
+    // one endpoint, so the heading has to be broader than "Injuries".
+    expect(teamNews).toMatch(/team news/i);
   });
 });

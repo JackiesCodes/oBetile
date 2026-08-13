@@ -10,6 +10,8 @@ export interface MatchDetailData {
   h2h: any[];
   standings: any[];
   prediction: any | null;
+  /** Reported absences for this fixture; display only, never a model input. */
+  injuries: any[];
 }
 
 interface MatchDetailCtx {

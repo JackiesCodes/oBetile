@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import MatchHeader from "@/components/match-detail/MatchHeader";
 import MatchSummary from "@/components/match-detail/MatchSummary";
 import MatchLineups from "@/components/match-detail/MatchLineups";
+import MatchTeamNews from "@/components/match-detail/MatchTeamNews";
 import MatchStats from "@/components/match-detail/MatchStats";
 import MatchH2H from "@/components/match-detail/MatchH2H";
 import MatchStandings from "@/components/match-detail/MatchStandings";
@@ -41,6 +42,7 @@ export default function MatchDetailPage() {
   const [h2h, setH2H] = useState<any[]>([]);
   const [prediction, setPrediction] = useState<any>(null);
   const [standings, setStandings] = useState<any[]>([]);
+  const [injuries, setInjuries] = useState<any[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -50,13 +52,19 @@ export default function MatchDetailPage() {
       setError(null);
 
       try {
-        const [fixtureRes, eventsRes, lineupsRes, statsRes, predRes] = await Promise.all([
-          fetch(`/api/football/fixture/${id}`).then((r) => r.json()),
-          fetch(`/api/football/events/${id}`).then((r) => r.json()),
-          fetch(`/api/football/lineups/${id}`).then((r) => r.json()),
-          fetch(`/api/football/statistics/${id}`).then((r) => r.json()),
-          fetch(`/api/football/predictions/${id}`).then((r) => r.json()),
-        ]);
+        const [fixtureRes, eventsRes, lineupsRes, statsRes, predRes, injuriesRes] =
+          await Promise.all([
+            fetch(`/api/football/fixture/${id}`).then((r) => r.json()),
+            fetch(`/api/football/events/${id}`).then((r) => r.json()),
+            fetch(`/api/football/lineups/${id}`).then((r) => r.json()),
+            fetch(`/api/football/statistics/${id}`).then((r) => r.json()),
+            fetch(`/api/football/predictions/${id}`).then((r) => r.json()),
+            // Most competitions publish none, so a failure here must not take
+            // the rest of the page down with it.
+            fetch(`/api/football/injuries/${id}`)
+              .then((r) => r.json())
+              .catch(() => []),
+          ]);
 
         const fix = Array.isArray(fixtureRes) ? fixtureRes[0] : null;
         if (!fix) throw new Error("Fixture not found");
@@ -71,6 +79,8 @@ export default function MatchDetailPage() {
         setLineups(lus);
         setStats(sts);
         setPrediction(pred);
+        const inj = Array.isArray(injuriesRes) ? injuriesRes : [];
+        setInjuries(inj);
 
         const homeId = fix.teams.home.id;
         const awayId = fix.teams.away.id;
@@ -96,6 +106,7 @@ export default function MatchDetailPage() {
           h2h: h2hData,
           standings: standingsData,
           prediction: pred,
+          injuries: inj,
         });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load match data");
@@ -237,7 +248,25 @@ export default function MatchDetailPage() {
             />
           )}
           {mobileTab === "lineups" && (
-            <MatchLineups lineups={lineups} fixtureStatus={fixtureStatus} />
+            <>
+              {/* Above the lineups on purpose: before kick-off the starting XI
+                  does not exist yet, and who is unavailable is the only team
+                  information there is. */}
+              <div className="border-b border-brand-dark-5">
+                <h3 className="px-4 pt-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  Team news
+                </h3>
+                <MatchTeamNews
+                  injuries={injuries}
+                  homeTeamId={homeTeamId}
+                  awayTeamId={awayTeamId}
+                  homeTeamName={fixture.teams.home.name}
+                  awayTeamName={fixture.teams.away.name}
+                  fixtureStatus={fixtureStatus}
+                />
+              </div>
+              <MatchLineups lineups={lineups} fixtureStatus={fixtureStatus} />
+            </>
           )}
           {mobileTab === "statistics" && (
             <MatchStats stats={stats} fixtureStatus={fixtureStatus} />
