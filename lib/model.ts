@@ -258,6 +258,39 @@ function applyForm(lambda: number, form: string | null): number {
 }
 
 /**
+ * How far a fully depleted side can be pushed.
+ *
+ * Reached only when a team's entire first eleven is unavailable, which never
+ * happens; a realistic bad week is two or three regulars, well under half of
+ * this. The ceiling exists so a freak injury list cannot dominate a forecast
+ * built from a whole season of results.
+ */
+const MAX_DEPLETION = 0.25;
+
+/**
+ * Scale both sides' expected goals by how much of each is missing.
+ *
+ * Inputs are shares of a starting eleven, 0 to 1, weighted by how much the
+ * absent players actually play — see lib/availability.ts. A depleted side
+ * scores less and concedes more, so each absence pushes the scoreline twice.
+ */
+export function applyAvailability(
+  lambdas: { home: number; away: number },
+  missing: { home: number; away: number } | null | undefined
+): { home: number; away: number } {
+  if (!missing) return lambdas;
+
+  const dHome = clamp(missing.home, 0, 1) * MAX_DEPLETION;
+  const dAway = clamp(missing.away, 0, 1) * MAX_DEPLETION;
+  if (dHome === 0 && dAway === 0) return lambdas;
+
+  return {
+    home: clamp(lambdas.home * (1 - dHome) * (1 + dAway), MIN_LAMBDA, MAX_LAMBDA),
+    away: clamp(lambdas.away * (1 - dAway) * (1 + dHome), MIN_LAMBDA, MAX_LAMBDA),
+  };
+}
+
+/**
  * Blend the model's probabilities toward what past meetings suggest.
  *
  * Only applied with enough meetings to mean anything, and weighted low: two
@@ -313,13 +346,25 @@ export interface PredictionInput {
   away: TeamRecord;
   table: TeamRecord[];
   h2h?: HeadToHead | null;
+  /**
+   * Share of each side's first eleven that is unavailable, 0 to 1. Omitted
+   * means "not known" rather than "everyone fit", so a fixture without injury
+   * data predicts exactly as it does without this argument.
+   */
+  missing?: { home: number; away: number } | null;
 }
 
 /**
  * Win, draw and loss probabilities for a fixture, or null when the inputs are
  * too thin to say anything useful.
  */
-export function predictFixture({ home, away, table, h2h }: PredictionInput): Probabilities | null {
+export function predictFixture({
+  home,
+  away,
+  table,
+  h2h,
+  missing,
+}: PredictionInput): Probabilities | null {
   if (totalPlayed(home) < MIN_MATCHES_PLAYED || totalPlayed(away) < MIN_MATCHES_PLAYED) {
     return null;
   }
@@ -330,10 +375,13 @@ export function predictFixture({ home, away, table, h2h }: PredictionInput): Pro
   const lambdas = expectedGoals(home, away, avg);
   if (!lambdas) return null;
 
-  const adjusted = {
-    home: applyForm(lambdas.home, home.form),
-    away: applyForm(lambdas.away, away.form),
-  };
+  const adjusted = applyAvailability(
+    {
+      home: applyForm(lambdas.home, home.form),
+      away: applyForm(lambdas.away, away.form),
+    },
+    missing
+  );
 
   const raw = applyHeadToHead(outcomeProbabilities(adjusted.home, adjusted.away), h2h ?? null);
 
