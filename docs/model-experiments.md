@@ -72,6 +72,66 @@ with whoever runs it.
 
 ---
 
+## Injuries weighted by minutes played — rejected, 13 August 2026
+
+The obvious answer to why the count failed: weight each absence by how much
+that player actually plays, so a first-choice striker outweighs a squad filler.
+It does not rescue the signal.
+
+**How it was measured.** Each absent player counted for the fraction of a
+regular starter's season he plays, totalled as a share of a starting eleven, and
+that share scaled both sides' expected goals. Data came from `/players`
+(minutes per player, ~34 paginated requests a season) joined to `/injuries` by
+player id. Coverage was good: 372 fixtures, 409 distinct injured players, 89% of
+them with minutes on record, a mean of 15.7% of an eleven missing per fixture.
+
+**The result on the Premier League — the league friendliest to the count
+version — was +0.33%**, against a bar of +0.5%. Weighting was *worse* than the
+raw count there (+0.67%), which is the opposite of what the theory predicts.
+
+**Sweeping the strength does not save it.** The ceiling is +0.42%:
+
+| Strength | Change in RPS |
+| --- | --- |
+| 0.5x | +0.19% |
+| 1.0x | +0.33% |
+| 1.5x | +0.40% |
+| 2.0x | **+0.42%** |
+| 3.0x | +0.37% |
+| 4.0x | −0.23% |
+
+**Three thumbs were on the scale for that +0.42%, and it still failed.**
+
+1. *Leakage.* Minutes were season totals, which include matches played after the
+   fixture being predicted. Weighting a round-5 absence by end-of-season minutes
+   uses information that did not exist yet. This was deliberate: it measures the
+   optimistic ceiling cheaply, so a failure here is conclusive without building
+   the expensive per-fixture version.
+2. *Best case league.* Ligue 1 cost the count version 1.53%; only the Premier
+   League was tested here, and only because it was the one that looked
+   promising.
+3. *Tuned in-sample.* The +0.42% is the best of seven settings chosen on the
+   same data it is reported against.
+
+An honest, non-leaky, cross-league number would be lower than +0.42%, and
++0.42% already fails.
+
+**What this rules out.** Not "injuries do not matter in football" — they plainly
+do. What it rules out is that *this provider's injury list, weighted by season
+minutes, adds anything to a Poisson model built on standings and form*. The
+likely reasons: the list mixes long-term absentees with day-before knocks
+without distinguishing them; it says nothing about position, so a missing
+third-choice goalkeeper and a missing centre-forward weigh the same once
+minutes are equal; and a team's recent form already contains the effect of
+whoever has been missing.
+
+**What would still be worth trying.** A signal that knows *position* and
+*recency* — the striker who got injured this week, not the defender who has been
+out since August. That needs lineup history rather than an injury list, and it
+is a different experiment, not a tuned version of this one.
+
+---
+
 ## Lineups — not attempted, and why
 
 The provider publishes confirmed line-ups roughly 20–60 minutes before

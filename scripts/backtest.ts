@@ -18,11 +18,6 @@
 
 import { readFileSync } from "fs";
 import { predictFixture, type TeamRecord, type Probabilities } from "@/lib/model";
-import {
-  availabilityFor,
-  type MinutesByPlayer,
-  type MissingByFixture,
-} from "@/lib/availability";
 
 interface Row {
   id: number;
@@ -181,25 +176,8 @@ async function loadRows(): Promise<{ rows: Row[]; label: string }> {
   return { label: arg("--label") ?? process.argv[3] ?? file, rows: JSON.parse(readFileSync(file, "utf8")) };
 }
 
-/**
- * Injury lists and player minutes, when the comparison is requested.
- *
- * Both come from files: --missing <injuries.json> --minutes <minutes.json>.
- * Absent, the run scores the model exactly as it ships.
- */
-function loadAvailability(): { missing: MissingByFixture; minutes: MinutesByPlayer } | null {
-  const missingFile = arg("--missing");
-  const minutesFile = arg("--minutes");
-  if (!missingFile || !minutesFile) return null;
-  return {
-    missing: JSON.parse(readFileSync(missingFile, "utf8")) as MissingByFixture,
-    minutes: JSON.parse(readFileSync(minutesFile, "utf8")) as MinutesByPlayer,
-  };
-}
-
 async function main() {
   const loaded = await loadRows();
-  const availability = loadAvailability();
   const label = loaded.label;
   const rows: Row[] = loaded.rows
     .filter((r: Row) => r.status === "FT" && r.gh !== null && r.ga !== null)
@@ -207,11 +185,8 @@ async function main() {
 
   const running = new Map<number, Running>();
   const modelScored: Scored[] = [];
-  const weightedScored: Scored[] = [];
   const covered: Row[] = [];
   let skipped = 0;
-  let withAvailability = 0;
-  let shareTotal = 0;
 
   for (const r of rows) {
     const home = running.get(r.h) ?? blank(r.h);
@@ -225,28 +200,6 @@ async function main() {
     if (p) {
       modelScored.push({ p, actual });
       covered.push(r);
-
-      if (availability) {
-        const missing = availabilityFor(
-          availability.missing,
-          availability.minutes,
-          r.id,
-          r.h,
-          r.a
-        );
-        if (missing) {
-          withAvailability++;
-          shareTotal += (missing.home + missing.away) / 2;
-        }
-        const weighted = predictFixture({
-          home: toRecord(home),
-          away: toRecord(away),
-          table,
-          missing,
-        });
-        // Same fixture set for both, or the comparison is not a comparison.
-        weightedScored.push({ p: weighted ?? p, actual });
-      }
     } else {
       skipped++;
     }
@@ -285,24 +238,6 @@ async function main() {
 
   const lift = ((baseRps - modelRps) / baseRps) * 100;
   console.log(`\nRPS improvement over baseline: ${lift.toFixed(1)}%  ${lift > 0 ? "(model is better)" : "(MODEL IS WORSE — do not ship)"}`);
-
-  if (availability) {
-    const weightedRps = summarise("model + weighted absences", weightedScored);
-    const delta = ((modelRps - weightedRps) / modelRps) * 100;
-    console.log(
-      `\navailability on ${withAvailability}/${modelScored.length} fixtures ` +
-        `(${((withAvailability / modelScored.length) * 100).toFixed(0)}%), ` +
-        `mean share of an eleven missing ${(withAvailability ? (shareTotal / withAvailability) * 100 : 0).toFixed(1)}%`
-    );
-    console.log(
-      `weighted absences change RPS by ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}%  ` +
-        (delta > 0.5
-          ? "(worth shipping)"
-          : delta < -0.5
-            ? "(WORSE — do not ship)"
-            : "(no real difference — do not ship complexity that buys nothing)")
-    );
-  }
 
   calibration(modelScored);
 }
