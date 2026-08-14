@@ -4,6 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { Heart, MessageCircle, Send } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import clsx from "clsx";
+import {
+  combinedConfidence,
+  formatConfidence,
+  labelFor,
+  slipOutcome,
+  tally,
+  type Outcome,
+  type SavedPick,
+} from "@/lib/slips";
 
 interface CommunityPost {
   id: string;
@@ -12,6 +21,89 @@ interface CommunityPost {
   likes_count: number;
   created_at: string;
   profiles: { username: string | null; avatar_url: string | null } | null;
+  /** Present when the post is a shared prediction rather than plain text. */
+  prediction_slips?: {
+    id: string;
+    title: string;
+    shared_at: string | null;
+    slip_picks: {
+      fixture_id: number;
+      home_team: string;
+      away_team: string;
+      pick: Outcome;
+      confidence: number | null;
+      result: SavedPick["result"];
+    }[];
+  } | null;
+}
+
+/**
+ * A shared prediction inside the feed.
+ *
+ * Shows every selection rather than a summary: the point of sharing a slip is
+ * that someone else can see what was actually called, and a headline figure
+ * alone would let a long shot read like a strong one.
+ */
+function SharedSlip({ slip }: { slip: NonNullable<CommunityPost["prediction_slips"]> }) {
+  const picks: SavedPick[] = (slip.slip_picks ?? []).map((p) => ({
+    fixtureId: String(p.fixture_id),
+    home: p.home_team,
+    away: p.away_team,
+    pick: p.pick,
+    confidence: p.confidence ?? 0,
+    result: p.result,
+  }));
+  if (picks.length === 0) return null;
+
+  const outcome = slipOutcome(picks);
+  const t = tally(picks);
+
+  return (
+    <div className="mt-2 border border-brand-dark-5 rounded-xl overflow-hidden bg-brand-dark-3">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-brand-dark-5">
+        <span className="flex-1 min-w-0 text-xs font-bold text-white truncate">{slip.title}</span>
+        <span
+          className={clsx(
+            "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0",
+            outcome === "won" && "bg-brand-green/20 text-brand-accent",
+            outcome === "lost" && "bg-red-500/15 text-red-400",
+            outcome === "pending" && "bg-brand-dark-5 text-gray-400"
+          )}
+        >
+          {outcome === "pending" ? `${t.settled}/${t.total}` : outcome}
+        </span>
+      </div>
+      <ul className="divide-y divide-brand-dark-5">
+        {picks.map((p) => (
+          <li key={p.fixtureId} className="flex items-center gap-2 px-3 py-1.5">
+            <span
+              className={clsx(
+                "w-1.5 h-1.5 rounded-full shrink-0",
+                p.result === "correct" && "bg-brand-green",
+                p.result === "wrong" && "bg-red-400",
+                (p.result === null || p.result === "push") && "bg-gray-600"
+              )}
+              aria-hidden="true"
+            />
+            <span className="flex-1 min-w-0">
+              <span className="block text-[10px] text-gray-500 truncate">
+                {p.home} v {p.away}
+              </span>
+              <span className="block text-xs text-gray-200 truncate">
+                {labelFor(p.pick, p.home, p.away)}
+              </span>
+            </span>
+            <span className="text-[11px] text-gray-500 tabular-nums shrink-0">
+              {p.confidence}%
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="px-3 py-1.5 border-t border-brand-dark-5 text-[10px] text-gray-500">
+        All correct: {formatConfidence(combinedConfidence(picks))}
+      </div>
+    </div>
+  );
 }
 
 function timeAgo(iso: string): string {
@@ -228,6 +320,7 @@ export default function CommunityPanel() {
                   <p className="text-sm text-gray-300 leading-relaxed break-words">
                     {post.content}
                   </p>
+                  {post.prediction_slips && <SharedSlip slip={post.prediction_slips} />}
                   <button
                     onClick={() => handleLike(post.id)}
                     className={clsx(

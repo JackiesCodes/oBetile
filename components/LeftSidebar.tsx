@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Trophy, Zap, Calendar, X, Trash2, ChevronDown, ChevronUp, Star } from "lucide-react";
 import clsx from "clsx";
-import { usePredictions } from "@/context/PredictionContext";
 import { useAuth } from "@/context/AuthContext";
 import { useFavourites } from "@/context/FavouritesContext";
 import { useMatchDetail } from "@/context/MatchDetailContext";
@@ -33,7 +32,6 @@ export default function LeftSidebar() {
 
 function LeftSidebarDefault() {
   const pathname = usePathname();
-  const { items, removePrediction, clearAll } = usePredictions();
   const { user, openAuthModal } = useAuth();
   const { favourites } = useFavourites();
   const [topLeaguesOpen, setTopLeaguesOpen] = useState(false);

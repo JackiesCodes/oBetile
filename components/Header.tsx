@@ -17,7 +17,7 @@ export default function Header({ onSearchOpen }: Props) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [liveCount, setLiveCount] = useState(0);
-  const { items } = usePredictions();
+  const { staged } = usePredictions();
   const { user, signOut, openAuthModal } = useAuth();
 
   // Poll live count for badge
@@ -74,10 +74,10 @@ export default function Header({ onSearchOpen }: Props) {
       {/* Right side actions */}
       <div className="flex items-center gap-2">
         {/* Mobile prediction count badge */}
-        {items.length > 0 && (
+        {staged.length > 0 && (
           <div className="xl:hidden flex items-center gap-1 bg-brand-dark-4 border border-brand-accent/60 text-white text-xs font-bold px-2.5 py-1.5 rounded-full">
             <span>🔮</span>
-            <span className="text-brand-accent">{items.length}</span>
+            <span className="text-brand-accent">{staged.length}</span>
           </div>
         )}
 

@@ -171,3 +171,45 @@ describe("team news stays out of the model", () => {
     expect(teamNews).toMatch(/team news/i);
   });
 });
+
+/**
+ * Selections are staged and committed as a group. The previous model wrote a
+ * row the instant a percentage was tapped, and a regression to that would
+ * silently destroy the grouping the whole feature exists for.
+ */
+describe("predictions are staged, then saved as a group", () => {
+  const context = readFileSync(path.join(ROOT, "context/PredictionContext.tsx"), "utf8");
+  const button = readFileSync(path.join(ROOT, "components/OddsButton.tsx"), "utf8");
+  const slip = readFileSync(path.join(ROOT, "components/PredictionSlip.tsx"), "utf8");
+
+  it("does not write to the database when a percentage is tapped", () => {
+    // OddsButton may only stage. Any persistence call in it means selections
+    // are being saved individually again.
+    expect(button).not.toMatch(/supabase/i);
+    expect(button).toMatch(/select\(/);
+  });
+
+  it("keeps staged selections across a reload", () => {
+    expect(context).toMatch(/localStorage/);
+  });
+
+  it("saves the whole set under one slip", () => {
+    expect(context).toMatch(/prediction_slips/);
+    expect(context).toMatch(/slip_picks/);
+  });
+
+  it("offers sharing and taking it back", () => {
+    expect(context).toMatch(/shareSlip/);
+    expect(context).toMatch(/unshareSlip/);
+  });
+
+  it("warns that sharing is public before it happens", () => {
+    expect(slip).toMatch(/public community feed/i);
+  });
+
+  it("shows the combined likelihood, not just the count", () => {
+    // A six-fold slip at 60% each is under 5%; hiding that would let length
+    // read as strength.
+    expect(slip).toMatch(/combinedConfidence/);
+  });
+});

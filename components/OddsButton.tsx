@@ -2,6 +2,7 @@
 
 import { usePredictions } from "@/context/PredictionContext";
 import { oddsToPercent } from "@/lib/utils";
+import { labelFor } from "@/lib/slips";
 import { Match } from "@/types";
 import clsx from "clsx";
 
@@ -12,10 +13,12 @@ interface Props {
 }
 
 export default function OddsButton({ match, market, label }: Props) {
-  const { addPrediction, removePrediction, hasPrediction } = usePredictions();
+  const { select, deselect, isSelected, isStaged, canStage } = usePredictions();
   const odds = match.odds[market];
-  const marketKey = `1x2-${market}`;
-  const selected = hasPrediction(match.id, marketKey);
+  const selected = isSelected(match.id, market);
+  // A different outcome on a match already in the slip is a change of mind, so
+  // it stays tappable; only a genuinely new fixture can hit the size cap.
+  const blocked = !selected && !isStaged(match.id) && !canStage(match.id);
 
   if (odds === null) {
     return (
@@ -29,27 +32,27 @@ export default function OddsButton({ match, market, label }: Props) {
 
   const pct = oddsToPercent(odds);
 
-  const selectionLabel =
-    market === "home" ? match.home : market === "away" ? match.away : "Draw";
-
   const handleClick = () => {
     if (selected) {
-      removePrediction(match.id, marketKey);
-    } else {
-      addPrediction({
-        matchId: match.id,
-        home: match.home,
-        away: match.away,
-        market: marketKey,
-        selection: selectionLabel,
-        odds,
-      });
+      deselect(match.id);
+      return;
     }
+    if (blocked) return;
+    select({
+      fixtureId: match.id,
+      home: match.home,
+      away: match.away,
+      pick: market,
+      confidence: pct,
+    });
   };
 
   return (
     <button
       onClick={handleClick}
+      disabled={blocked}
+      aria-pressed={selected}
+      aria-label={`${labelFor(market, match.home, match.away)} ${pct}%`}
       className={clsx(
         // Narrower on phones: three of these plus the kick-off time otherwise
         // leave no room for the team names on a 390px screen.

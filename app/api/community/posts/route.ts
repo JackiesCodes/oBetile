@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("community_posts")
-      .select("*, profiles(username, avatar_url)")
+      .select("*, profiles(username, avatar_url), prediction_slips(id,title,shared_at,slip_picks(fixture_id,home_team,away_team,pick,confidence,result))")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         league_id: positiveIntOrNull(body?.league_id),
         sport,
       })
-      .select("*, profiles(username, avatar_url)")
+      .select("*, profiles(username, avatar_url), prediction_slips(id,title,shared_at,slip_picks(fixture_id,home_team,away_team,pick,confidence,result))")
       .single();
 
     if (error) return serverErrorResponse("community.posts", error);
