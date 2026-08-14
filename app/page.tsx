@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { sports, countryFlags } from "@/data/matches";
 import LeagueSection from "@/components/LeagueSection";
@@ -10,6 +10,7 @@ import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
 import { withOdds, type OddsMap } from "@/lib/odds";
+import { useLiveData } from "@/lib/use-live-data";
 import { Flame, Zap } from "lucide-react";
 import { useFavourites } from "@/context/FavouritesContext";
 
@@ -101,7 +102,11 @@ export default function HomePage() {
   const [activeStatus, setActiveStatus] = useState("All");
   const [matches, setMatches] = useState<Match[]>([]);
   const [liveCount, setLiveCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+
+  // Prices already fetched for the day on screen. A refresh brings back
+  // fixtures with no odds attached, so without this the percentages would blink
+  // out every thirty seconds and reappear once the odds call returned.
+  const knownOdds = useRef<OddsMap>({});
 
   // Read ?tab= URL param on first load (used by sidebar deep links)
   useEffect(() => {
@@ -115,74 +120,61 @@ export default function HomePage() {
     setActiveStatus("All");
   }, [activeTab]);
 
-  // Fetch fixtures when activeDate changes; auto-refresh every 30s for Today only
-  useEffect(() => {
-    let cancelled = false;
+  const loading = useLiveData(
+    async (background) => {
+      const dateParams = getDateParams(activeDate);
+      // A different day is a different set of prices; keeping the old ones
+      // would attach yesterday's percentages to today's fixtures.
+      if (!background) knownOdds.current = {};
 
-    async function load() {
-      if (cancelled) return;
-      setLoading(true);
-      try {
-        const dateParams = getDateParams(activeDate);
+      // No season param — API-Football resolves the correct season per competition automatically when querying by date.
+      // Passing season=2025 would break calendar-year leagues (MLS, Brazil, etc.) whose 2026 season ≠ 2025.
+      const qp = new URLSearchParams({ ...dateParams });
+      const [fixturesData, liveData] = await Promise.all([
+        fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []),
+        fetch("/api/football/live").then((r) => r.json()).catch(() => []),
+      ]);
 
-        // No season param — API-Football resolves the correct season per competition automatically when querying by date.
-        // Passing season=2025 would break calendar-year leagues (MLS, Brazil, etc.) whose 2026 season ≠ 2025.
-        const qp = new URLSearchParams({ ...dateParams });
-        const [fixturesData, liveData] = await Promise.all([
-          fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []),
-          fetch("/api/football/live").then((r) => r.json()).catch(() => []),
-        ]);
+      const deduped = dedupe(
+        (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture)
+      );
 
-        const deduped = dedupe(
-          (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture)
-        );
+      // Prices we already hold go straight back on, so a refresh shows the new
+      // scores without the percentages flickering.
+      setMatches(deduped.map((m) => withOdds(m, knownOdds.current)));
+      setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
 
-        if (!cancelled) {
-          setMatches(deduped);
-          setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
-        }
+      // Prices barely move and the route caches them for fifteen minutes, so
+      // asking again every thirty seconds is a round trip that learns nothing —
+      // expensive on a phone, and it is the fixtures that carry live scores.
+      // Only a single day can be priced, so the week view goes without.
+      if (background || !dateParams.date) return;
 
-        // Deliberately not awaited alongside the fixtures. A full day of prices
-        // is around twenty upstream pages, and blocking on that would hold the
-        // match list back by seconds; percentages fill in when they arrive.
-        // Only a single day can be priced, so the week view goes without.
-        if (dateParams.date) {
-          fetch(`/api/football/odds?date=${dateParams.date}`)
-            .then((r) => r.json())
-            .then((oddsData) => {
-              if (cancelled || !oddsData || typeof oddsData !== "object") return;
-              const odds = oddsData as OddsMap;
-              const merged = deduped.map((m) => withOdds(m, odds));
-              setMatches(merged);
+      // Deliberately not awaited alongside the fixtures. A full day of prices
+      // is around twenty upstream pages, and blocking on that would hold the
+      // match list back by seconds; percentages fill in when they arrive.
+      fetch(`/api/football/odds?date=${dateParams.date}`)
+        .then((r) => r.json())
+        .then((oddsData) => {
+          if (!oddsData || typeof oddsData !== "object") return;
+          knownOdds.current = { ...knownOdds.current, ...(oddsData as OddsMap) };
+          const merged = deduped.map((m) => withOdds(m, knownOdds.current));
+          setMatches(merged);
 
-              // Computed outside the state updater on purpose: updaters must be
-              // pure, and with reactStrictMode on, one containing a fetch would
-              // fire it twice.
-              fillMissingOdds(merged, (extra) => {
-                if (!cancelled) setMatches((cur) => cur.map((m) => withOdds(m, extra)));
-              });
-            })
-            .catch(() => {});
-        }
-      } catch {
-        // silently fail
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (activeDate === "Today") {
-      interval = setInterval(load, 30_000);
-    }
-
-    return () => {
-      cancelled = true;
-      if (interval) clearInterval(interval);
-    };
-  }, [activeDate]);
+          // Computed outside the state updater on purpose: updaters must be
+          // pure, and with reactStrictMode on, one containing a fetch would
+          // fire it twice.
+          fillMissingOdds(merged, (extra) => {
+            knownOdds.current = { ...knownOdds.current, ...extra };
+            setMatches((cur) => cur.map((m) => withOdds(m, extra)));
+          });
+        })
+        .catch(() => {});
+    },
+    // Only today's list changes under its own steam; a future date is settled.
+    activeDate === "Today" ? 30_000 : null,
+    [activeDate]
+  );
 
   const filtered = matches.filter((m) => {
     // Status chip overrides when explicitly set

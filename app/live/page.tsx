@@ -1,33 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import LeagueSection from "@/components/LeagueSection";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
+import { useLiveData } from "@/lib/use-live-data";
 import { Zap, Activity } from "lucide-react";
 import clsx from "clsx";
 
 export default function LivePage() {
   const [activeSport, setActiveSport] = useState("all");
   const [liveMatches, setLiveMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await fetch("/api/football/live").then((r) => r.json()).catch(() => []);
-        const normalized = (Array.isArray(data) ? data as APIFixture[] : []).map(normalizeFixture);
-        setLiveMatches(normalized);
-      } catch {
-        // silently fail
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-    const t = setInterval(load, 30_000);
-    return () => clearInterval(t);
-  }, []);
+  const loading = useLiveData(
+    async () => {
+      const data = await fetch("/api/football/live").then((r) => r.json()).catch(() => []);
+      const normalized = (Array.isArray(data) ? data as APIFixture[] : []).map(normalizeFixture);
+      setLiveMatches(normalized);
+    },
+    30_000,
+    []
+  );
 
   const filtered =
     activeSport === "all"

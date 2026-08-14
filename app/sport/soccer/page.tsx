@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import LeagueSection from "@/components/LeagueSection";
 import SportsTabBar from "@/components/SportsTabBar";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
 import { withOdds, type OddsMap } from "@/lib/odds";
+import { useLiveData } from "@/lib/use-live-data";
 import { Zap } from "lucide-react";
 
 /**
@@ -96,63 +97,52 @@ export default function SoccerPage() {
   const [activeDate, setActiveDate] = useState("Today");
   const [activeStatus, setActiveStatus] = useState("All");
   const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Prices held across refreshes — see the homepage for why they must survive.
+  const knownOdds = useRef<OddsMap>({});
 
   useEffect(() => {
     setActiveStatus("All");
   }, [activeTab]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loading = useLiveData(
+    async (background) => {
+      const dateParams = getDateParams(activeDate);
+      if (!background) knownOdds.current = {};
 
-    async function load() {
-      if (cancelled) return;
-      setLoading(true);
-      try {
-        const dateParams = getDateParams(activeDate);
-        const qp = new URLSearchParams({ ...dateParams }); // no season — let API resolve per competition
-        const fixturesData = await fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []);
-        const deduped = dedupe(
-          (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture)
-        );
+      const qp = new URLSearchParams({ ...dateParams }); // no season — let API resolve per competition
+      const fixturesData = await fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []);
+      const deduped = dedupe(
+        (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture)
+      );
 
-        if (!cancelled) setMatches(deduped);
+      setMatches(deduped.map((m) => withOdds(m, knownOdds.current)));
 
-        // Loaded after the list rather than with it — see the homepage for why.
-        if (dateParams.date) {
-          fetch(`/api/football/odds?date=${dateParams.date}`)
-            .then((r) => r.json())
-            .then((oddsData) => {
-              if (cancelled || !oddsData || typeof oddsData !== "object") return;
-              const odds = oddsData as OddsMap;
-              const merged = deduped.map((m) => withOdds(m, odds));
-              setMatches(merged);
+      // Prices are cached for fifteen minutes upstream, so a background refresh
+      // re-asking for them would cost a round trip and learn nothing.
+      if (background || !dateParams.date) return;
 
-              // Outside the state updater — see the homepage: a fetch inside one
-              // fires twice under reactStrictMode.
-              fillMissingOdds(merged, (extra) => {
-                if (!cancelled) setMatches((cur) => cur.map((m) => withOdds(m, extra)));
-              });
-            })
-            .catch(() => {});
-        }
-      } catch {
-        // silently fail
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
+      // Loaded after the list rather than with it — see the homepage for why.
+      fetch(`/api/football/odds?date=${dateParams.date}`)
+        .then((r) => r.json())
+        .then((oddsData) => {
+          if (!oddsData || typeof oddsData !== "object") return;
+          knownOdds.current = { ...knownOdds.current, ...(oddsData as OddsMap) };
+          const merged = deduped.map((m) => withOdds(m, knownOdds.current));
+          setMatches(merged);
 
-    load();
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (activeDate === "Today") {
-      interval = setInterval(load, 30_000);
-    }
-    return () => {
-      cancelled = true;
-      if (interval) clearInterval(interval);
-    };
-  }, [activeDate]);
+          // Outside the state updater — see the homepage: a fetch inside one
+          // fires twice under reactStrictMode.
+          fillMissingOdds(merged, (extra) => {
+            knownOdds.current = { ...knownOdds.current, ...extra };
+            setMatches((cur) => cur.map((m) => withOdds(m, extra)));
+          });
+        })
+        .catch(() => {});
+    },
+    activeDate === "Today" ? 30_000 : null,
+    [activeDate]
+  );
 
   const liveCount = matches.filter((m) => m.status === "live").length;
 

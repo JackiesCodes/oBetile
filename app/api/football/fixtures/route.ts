@@ -11,7 +11,14 @@ export async function GET(req: NextRequest) {
   });
   try {
     const data = await apiFetch("/fixtures", params, 60);
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      // A day of fixtures is a large payload and the page polls it every thirty
+      // seconds. Without this the browser re-downloads all of it each time —
+      // which on a slow mobile connection takes longer than the interval, so
+      // the polls pile up and nothing ever finishes arriving. The upstream call
+      // was already cached; this makes the response to the phone cheap too.
+      headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=120" },
+    });
   } catch (e) {
     return apiErrorResponse(e);
   }

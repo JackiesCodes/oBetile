@@ -8,7 +8,11 @@ export async function GET(req: NextRequest) {
   const params: Record<string, string> = { live: league ?? "all" };
   try {
     const data = await apiFetch("/fixtures", params, 30);
-    return NextResponse.json(data);
+    // Shorter than the fixtures list because scores are the point, but still
+    // enough that several visitors polling at once share one response.
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "s-maxage=30, stale-while-revalidate=60" },
+    });
   } catch (e) {
     return apiErrorResponse(e);
   }
