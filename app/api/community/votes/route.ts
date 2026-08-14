@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { serverErrorResponse } from "@/lib/api-error";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { serverErrorResponse, unconfiguredResponse } from "@/lib/api-error";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /**
@@ -22,6 +22,7 @@ function parseFixtureId(raw: unknown): number | null {
 
 // GET ?fixture=123  →  { "1x2": { home: 12, draw: 5, away: 8 }, "btts": { yes: 10, no: 15 } }
 export async function GET(req: NextRequest) {
+  if (!hasSupabaseConfig()) return unconfiguredResponse();
   const fixtureId = parseFixtureId(new URL(req.url).searchParams.get("fixture"));
   if (fixtureId === null) {
     return NextResponse.json({ error: "valid fixture param required" }, { status: 400 });
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
 
 // POST { fixture_id, market, selection }  →  toggle vote, return updated counts
 export async function POST(req: NextRequest) {
+  if (!hasSupabaseConfig()) return unconfiguredResponse();
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -86,12 +88,18 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       // Delete old vote (toggle off or change)
-      await supabase
+      const { error: deleteError } = await supabase
         .from("match_market_votes")
         .delete()
         .eq("fixture_id", fixture_id)
         .eq("market", market)
         .eq("user_id", user.id);
+
+      // Reporting this matters: if the delete fails and the insert then hits
+      // the (fixture_id, market, user_id) primary key, both halves fail
+      // silently and the caller is handed unchanged counts that look like a
+      // vote which simply did not register.
+      if (deleteError) return serverErrorResponse("community.votes.delete", deleteError);
 
       // If same selection — just toggled off, don't re-insert
       if (existing.selection === selection) {
@@ -100,12 +108,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert new vote
-    await supabase.from("match_market_votes").insert({
+    const { error: insertError } = await supabase.from("match_market_votes").insert({
       fixture_id,
       market,
       selection,
       user_id: user.id,
     });
+
+    if (insertError) return serverErrorResponse("community.votes.insert", insertError);
 
     return await getUpdatedCounts(supabase, fixture_id);
   } catch (e) {

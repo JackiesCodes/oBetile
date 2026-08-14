@@ -35,3 +35,18 @@ export function serverErrorResponse(context: string, e: unknown, status = 500) {
   console.error(`${context} failed`, e);
   return NextResponse.json({ error: "Something went wrong" }, { status });
 }
+
+/**
+ * The database is not configured on this deployment.
+ *
+ * Distinct from a 500: nothing has crashed and retrying will not help until
+ * the keys are set. The browser client already degrades quietly when its
+ * config is absent; without this the server half threw an opaque error from
+ * inside the Supabase SDK for the same condition.
+ */
+export function unconfiguredResponse() {
+  return NextResponse.json(
+    { error: "Community features are not configured." },
+    { status: 503 }
+  );
+}

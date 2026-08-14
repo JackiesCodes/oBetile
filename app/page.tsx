@@ -15,6 +15,7 @@ import { useLiveData } from "@/lib/use-live-data";
 import { isPickable } from "@/lib/slips";
 import { Flame, Zap } from "lucide-react";
 import { useFavourites } from "@/context/FavouritesContext";
+import { useLiveMatches } from "@/context/LiveMatchesContext";
 
 function dedupe(matches: Match[]): Match[] {
   const seen = new Set<string>();
@@ -89,12 +90,15 @@ export default function HomePage() {
   const [activeDate, setActiveDate] = useState("Today");
   const [activeStatus, setActiveStatus] = useState("All");
   const [matches, setMatches] = useState<Match[]>([]);
-  const [liveCount, setLiveCount] = useState(0);
 
   // Prices already fetched for the day on screen. A refresh brings back
   // fixtures with no odds attached, so without this the percentages would blink
   // out every thirty seconds and reappear once the odds call returned.
   const knownOdds = useRef<OddsMap>({});
+
+  // The live list is polled once for the whole app; this page no longer fetches
+  // its own copy alongside the header's and the notification panel's.
+  const { count: liveCount } = useLiveMatches();
 
   // Read ?tab= URL param on first load (used by sidebar deep links)
   useEffect(() => {
@@ -118,10 +122,9 @@ export default function HomePage() {
       // No season param — API-Football resolves the correct season per competition automatically when querying by date.
       // Passing season=2025 would break calendar-year leagues (MLS, Brazil, etc.) whose 2026 season ≠ 2025.
       const qp = new URLSearchParams({ ...dateParams });
-      const [fixturesData, liveData] = await Promise.all([
-        fetch(`/api/football/fixtures?${qp}`).then((r) => r.json()).catch(() => []),
-        fetch("/api/football/live").then((r) => r.json()).catch(() => []),
-      ]);
+      const fixturesData = await fetch(`/api/football/fixtures?${qp}`)
+        .then((r) => r.json())
+        .catch(() => []);
 
       const deduped = dedupe(
         (Array.isArray(fixturesData) ? fixturesData as APIFixture[] : []).map(normalizeFixture)
@@ -130,7 +133,6 @@ export default function HomePage() {
       // Prices we already hold go straight back on, so a refresh shows the new
       // scores without the percentages flickering.
       setMatches(deduped.map((m) => withOdds(m, knownOdds.current)));
-      setLiveCount(Array.isArray(liveData) ? liveData.length : 0);
 
       // Prices barely move and the route caches them for fifteen minutes, so
       // asking again every thirty seconds is a round trip that learns nothing —

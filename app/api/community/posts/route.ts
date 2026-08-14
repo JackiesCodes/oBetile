@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { serverErrorResponse } from "@/lib/api-error";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { serverErrorResponse, unconfiguredResponse } from "@/lib/api-error";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { sports } from "@/data/matches";
 
@@ -14,6 +14,7 @@ function positiveIntOrNull(raw: unknown): number | null {
 }
 
 export async function GET(req: NextRequest) {
+  if (!hasSupabaseConfig()) return unconfiguredResponse();
   const { searchParams } = new URL(req.url);
   // Clamp the page: a NaN or negative value produces an invalid range, and an
   // unbounded one lets a caller walk the whole table a request at a time.
@@ -38,6 +39,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!hasSupabaseConfig()) return unconfiguredResponse();
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

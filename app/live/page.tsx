@@ -2,25 +2,15 @@
 
 import { useState } from "react";
 import LeagueSection from "@/components/LeagueSection";
-import { Match, APIFixture } from "@/types";
-import { normalizeFixture } from "@/lib/api-football";
-import { useLiveData } from "@/lib/use-live-data";
+import { Match } from "@/types";
+import { useLiveMatches } from "@/context/LiveMatchesContext";
 import { Zap, Activity } from "lucide-react";
 import clsx from "clsx";
 
 export default function LivePage() {
   const [activeSport, setActiveSport] = useState("all");
-  const [liveMatches, setLiveMatches] = useState<Match[]>([]);
-
-  const loading = useLiveData(
-    async () => {
-      const data = await fetch("/api/football/live").then((r) => r.json()).catch(() => []);
-      const normalized = (Array.isArray(data) ? data as APIFixture[] : []).map(normalizeFixture);
-      setLiveMatches(normalized);
-    },
-    30_000,
-    []
-  );
+  // One shared poll for the whole app rather than a fourth of its own.
+  const { matches: liveMatches, loading } = useLiveMatches();
 
   const filtered =
     activeSport === "all"

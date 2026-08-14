@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
-import { APIFixture } from "@/types";
-import { normalizeFixture } from "@/lib/api-football";
+import { useLiveMatches } from "@/context/LiveMatchesContext";
 
 interface Props {
   onClose: () => void;
 }
 
 export default function NotificationsPanel({ onClose }: Props) {
-  const [liveMatches, setLiveMatches] = useState<ReturnType<typeof normalizeFixture>[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Shared with the header badge and the feed — one poll for the whole app.
+  const { matches: liveMatches, loading } = useLiveMatches();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -26,27 +25,6 @@ export default function NotificationsPanel({ onClose }: Props) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
 
-  // Load live matches + auto-refresh every 30s
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const data = await fetch("/api/football/live").then((r) => r.json());
-        if (!cancelled) {
-          const matches = (Array.isArray(data) ? data as APIFixture[] : []).map(normalizeFixture);
-          setLiveMatches(matches);
-          setLoading(false);
-        }
-      } catch {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    const interval = setInterval(load, 30_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
 
   return (
     <div

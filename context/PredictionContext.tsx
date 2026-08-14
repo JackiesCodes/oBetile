@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -127,6 +128,23 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
       // Private browsing denies storage; the slip still works for this session.
     }
   }, [staged]);
+
+  // Signing out has to clear the half-built slip too. It lives in
+  // localStorage, so without this the next person to use a shared phone opens
+  // the app and finds someone else's selections already staged.
+  const signedIn = Boolean(user);
+  const wasSignedIn = useRef(signedIn);
+  useEffect(() => {
+    if (wasSignedIn.current && !signedIn) {
+      setStaged([]);
+      try {
+        localStorage.removeItem(STAGED_KEY);
+      } catch {
+        // Nothing more to do if storage is unavailable.
+      }
+    }
+    wasSignedIn.current = signedIn;
+  }, [signedIn]);
 
   const select = useCallback((selection: Selection) => {
     // Second line of defence behind the button's own check: whatever route a

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Search, Menu, X, Bell, LogOut, User } from "lucide-react";
 import { usePredictions } from "@/context/PredictionContext";
+import { useLiveMatches } from "@/context/LiveMatchesContext";
 import { useAuth } from "@/context/AuthContext";
 import NotificationsPanel from "@/components/NotificationsPanel";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -16,22 +17,12 @@ export default function Header({ onSearchOpen }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [liveCount, setLiveCount] = useState(0);
   const { staged } = usePredictions();
+  // Shared with the notifications panel and the feed, so the badge can never
+  // disagree with the list it opens.
+  const { count: liveCount } = useLiveMatches();
   const { user, signOut, openAuthModal } = useAuth();
 
-  // Poll live count for badge
-  useEffect(() => {
-    async function fetchCount() {
-      try {
-        const data = await fetch("/api/football/live").then((r) => r.json());
-        setLiveCount(Array.isArray(data) ? data.length : 0);
-      } catch { /* ignore */ }
-    }
-    fetchCount();
-    const interval = setInterval(fetchCount, 30_000);
-    return () => clearInterval(interval);
-  }, []);
 
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "";
 
@@ -65,6 +56,7 @@ export default function Header({ onSearchOpen }: Props) {
       {/* Search trigger */}
       <button
         onClick={onSearchOpen}
+        aria-label="Search matches"
         className="hidden sm:flex items-center bg-brand-dark-4 hover:bg-brand-dark-5 rounded-full px-3 py-1.5 gap-2 w-48 lg:w-64 transition-colors border border-transparent hover:border-brand-dark-5"
       >
         <Search size={14} className="text-gray-400 shrink-0" />
@@ -134,6 +126,7 @@ export default function Header({ onSearchOpen }: Props) {
 
         <button
           onClick={onSearchOpen}
+          aria-label="Search matches"
           className="sm:hidden text-gray-400 hover:text-white transition-colors p-2 rounded-lg"
         >
           <Search size={18} />
@@ -145,6 +138,8 @@ export default function Header({ onSearchOpen }: Props) {
         <div className="relative hidden sm:block">
           <button
             onClick={() => setNotifOpen((p) => !p)}
+            aria-label="Live match notifications"
+            aria-expanded={notifOpen}
             className="relative text-gray-400 hover:text-white transition-colors p-2 rounded-lg"
           >
             <Bell size={18} />

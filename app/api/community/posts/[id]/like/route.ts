@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { serverErrorResponse } from "@/lib/api-error";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { serverErrorResponse, unconfiguredResponse } from "@/lib/api-error";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!hasSupabaseConfig()) return unconfiguredResponse();
   const { id: postId } = await params;
 
   try {

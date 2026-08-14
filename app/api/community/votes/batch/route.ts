@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { serverErrorResponse } from "@/lib/api-error";
+import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { serverErrorResponse, unconfiguredResponse } from "@/lib/api-error";
 
 // GET ?fixtures=123,456,789
 // Returns { "123": { "1x2": { home: 5, draw: 2, away: 3 } }, "456": { ... } }
@@ -8,6 +8,7 @@ import { serverErrorResponse } from "@/lib/api-error";
 /** A page shows a day of fixtures; well above anything the UI asks for. */
 const MAX_FIXTURES = 200;
 export async function GET(req: NextRequest) {
+  if (!hasSupabaseConfig()) return unconfiguredResponse();
   const raw = new URL(req.url).searchParams.get("fixtures");
   if (!raw) return NextResponse.json({});
 

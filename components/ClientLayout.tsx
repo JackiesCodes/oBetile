@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PredictionProvider } from "@/context/PredictionContext";
+import { LiveMatchesProvider } from "@/context/LiveMatchesContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { FavouritesProvider } from "@/context/FavouritesContext";
@@ -25,6 +26,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <MatchDetailProvider>
       <FavouritesProvider>
       <PredictionProvider>
+      <LiveMatchesProvider>
         <Header onSearchOpen={() => setSearchOpen(true)} />
         <AuthModal />
         <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -37,6 +39,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <RightPanel />
           <PredictionSlip />
         </div>
+      </LiveMatchesProvider>
       </PredictionProvider>
       </FavouritesProvider>
       </MatchDetailProvider>

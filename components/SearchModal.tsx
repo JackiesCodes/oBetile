@@ -26,6 +26,9 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
   const [loading, setLoading] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Counts searches so a slow reply for an earlier query cannot overwrite a
+  // faster one for what is actually in the box.
+  const searchSeq = useRef(0);
 
   useEffect(() => {
     if (open) {
@@ -37,8 +40,18 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
     } else {
       setQuery("");
       setResults(null);
+      setLoading(false);
+      // Invalidate anything in flight, and drop a debounce that has not fired
+      // yet — otherwise closing and reopening shows the last search's results.
+      searchSeq.current++;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     }
   }, [open]);
+
+  // A timer left running past unmount would call setState on a dead component.
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -49,14 +62,22 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
   }, [onClose]);
 
   const doSearch = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults(null); return; }
+    // Every search takes a ticket. Typing "ars" then "arsenal" fires two
+    // requests, and nothing guarantees they come back in order — without this
+    // a slow reply for "ars" lands last and replaces the results for the word
+    // actually on screen.
+    const seq = ++searchSeq.current;
+    const isStale = () => seq !== searchSeq.current;
+
+    if (q.length < 2) { setResults(null); setLoading(false); return; }
     setLoading(true);
     try {
       const res = await fetch(`/api/football/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
+      if (isStale()) return;
       setResults(data);
     } catch { /* ignore */ } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, []);
 
