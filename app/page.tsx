@@ -11,6 +11,7 @@ import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
 import { withOdds, type OddsMap } from "@/lib/odds";
 import { useLiveData } from "@/lib/use-live-data";
+import { isPickable } from "@/lib/slips";
 import { Flame, Zap } from "lucide-react";
 import { useFavourites } from "@/context/FavouritesContext";
 
@@ -198,10 +199,13 @@ export default function HomePage() {
     {}
   );
 
+  // "upcoming" alone is not enough: a cached fixture keeps that status long
+  // after kick-off, which was promoting matches that finished hours ago to the
+  // top of the page as something to predict.
   const featuredMatches =
     matches.filter((m) => m.status === "live").slice(0, 2).length === 2
       ? matches.filter((m) => m.status === "live").slice(0, 2)
-      : matches.filter((m) => m.status === "upcoming").slice(0, 2);
+      : matches.filter((m) => m.status === "upcoming" && isPickable(m)).slice(0, 2);
 
   const sportsWithLive = sports.map((s) =>
     s.id === "soccer" ? { ...s, liveCount } : s

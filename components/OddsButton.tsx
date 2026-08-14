@@ -2,7 +2,7 @@
 
 import { usePredictions } from "@/context/PredictionContext";
 import { oddsToPercent } from "@/lib/utils";
-import { isPickable, labelFor } from "@/lib/slips";
+import { isPickable, labelFor, MAX_SELECTIONS } from "@/lib/slips";
 import { Match } from "@/types";
 import clsx from "clsx";
 
@@ -24,6 +24,16 @@ export default function OddsButton({ match, market, label }: Props) {
   // it stays tappable; only a genuinely new fixture can hit the size cap.
   const full = !selected && !isStaged(match.id) && !canStage(match.id);
   const blocked = over || full;
+
+  // Both reasons have to look unselectable, not just the first. A tile at the
+  // size cap used to be dead while still rendering at full strength, complete
+  // with its hover highlight — indistinguishable from one that simply ignored
+  // the tap.
+  const reason = over
+    ? "This match has already kicked off"
+    : full
+    ? `Slip is full — ${MAX_SELECTIONS} selections maximum. Remove one to add another.`
+    : undefined;
 
   if (odds === null) {
     return (
@@ -67,16 +77,17 @@ export default function OddsButton({ match, market, label }: Props) {
           ? `${labelFor(market, match.home, match.away)} ${pct}% — match finished, no longer predictable`
           : `${labelFor(market, match.home, match.away)} ${pct}%`
       }
-      title={over ? "This match has already kicked off" : undefined}
+      title={reason}
       className={clsx(
         // Narrower on phones: three of these plus the kick-off time otherwise
         // leave no room for the team names on a 390px screen.
         "relative w-[3.1rem] h-12 sm:w-16 sm:h-14 shrink-0 flex flex-col items-center justify-center rounded text-xs font-semibold transition-all border overflow-hidden",
         selected
           ? "bg-brand-green text-black border-brand-accent shadow-[0_0_8px_rgba(0,185,9,0.4)]"
-          : over
-          ? // Still readable — the percentage is useful history — but plainly
-            // not something to tap.
+          : blocked
+          ? // Still readable — the percentage is worth seeing either way — but
+            // plainly not something to tap, and with no hover promising that it
+            // is.
             "bg-brand-dark-4 text-white border-transparent opacity-40 cursor-not-allowed"
           : "bg-brand-dark-4 text-white border-transparent hover:border-brand-accent"
       )}
