@@ -9,7 +9,10 @@ export interface Match {
   score: string | null;
   minute?: string;
   status: "live" | "upcoming" | "finished";
+  /** Display-only, in the renderer's locale. */
   time?: string;
+  /** Kick-off as an ISO instant. Unlike `status` this does not go stale in a cache. */
+  kickoff?: string;
   odds: {
     home: number | null;
     draw: number | null;

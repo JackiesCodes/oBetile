@@ -359,6 +359,7 @@ export function normalizeFixture(f: APIFixture): Match {
     minute,
     status,
     time,
+    kickoff: f.fixture.date,
     odds: { home: null, draw: null, away: null },
   };
 }

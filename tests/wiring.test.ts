@@ -212,4 +212,34 @@ describe("predictions are staged, then saved as a group", () => {
     // read as strength.
     expect(slip).toMatch(/combinedConfidence/);
   });
+
+  it("shows how many saved slips have not lost", () => {
+    expect(slip).toMatch(/summariseSlips/);
+  });
+});
+
+/**
+ * Matches that have already been played must not be predictable. Without this
+ * a finished fixture could be tapped and saved, and it settled the moment it
+ * was written — slips full of selections whose outcomes were already printed
+ * on the same page.
+ */
+describe("finished matches cannot be predicted", () => {
+  const button = readFileSync(path.join(ROOT, "components/OddsButton.tsx"), "utf8");
+  const context = readFileSync(path.join(ROOT, "context/PredictionContext.tsx"), "utf8");
+  const football = readFileSync(path.join(ROOT, "lib/api-football.ts"), "utf8");
+
+  it("checks before letting a percentage be tapped", () => {
+    expect(button).toMatch(/isPickable\(match\)/);
+  });
+
+  it("guards again where selections enter the slip", () => {
+    // The button's check alone would be undone by any other caller of select.
+    expect(context).toMatch(/isPickable/);
+  });
+
+  it("carries a real kick-off instant, since a cached status goes stale", () => {
+    expect(football).toMatch(/kickoff: f\.fixture\.date/);
+    expect(button).toMatch(/kickoff: match\.kickoff/);
+  });
 });

@@ -9,8 +9,10 @@ import {
   combinedConfidence,
   defaultTitle,
   formatConfidence,
+  isPickable,
   labelFor,
   slipOutcome,
+  summariseSlips,
   tally,
   MAX_NOTE,
   MAX_SELECTIONS,
@@ -179,7 +181,12 @@ function SlipBody() {
   const [title, setTitle] = useState("");
   const [justSaved, setJustSaved] = useState(false);
 
-  const combined = combinedConfidence(staged);
+  // A panel left open outlives its fixtures. Anything that has kicked off since
+  // it was staged is no longer a prediction, so it is called out and left out
+  // of the save rather than quietly written and settled on arrival.
+  const expired = staged.filter((s) => !isPickable(s));
+  const live = staged.filter((s) => isPickable(s));
+  const combined = combinedConfidence(live);
 
   if (staged.length === 0) {
     return (
@@ -202,11 +209,16 @@ function SlipBody() {
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto">
         <ul className="divide-y divide-brand-dark-5">
-          {staged.map((s) => (
-            <li key={s.fixtureId} className="flex items-center gap-2 px-3 py-2.5">
+          {staged.map((s) => {
+            const gone = !isPickable(s);
+            return (
+            <li
+              key={s.fixtureId}
+              className={clsx("flex items-center gap-2 px-3 py-2.5", gone && "opacity-50")}
+            >
               <span className="flex-1 min-w-0">
                 <span className="block text-[11px] text-gray-500 truncate">
-                  {s.home} v {s.away}
+                  {gone ? "Kicked off — remove to save" : `${s.home} v ${s.away}`}
                 </span>
                 <span className="block text-sm font-semibold text-white truncate">
                   {labelFor(s.pick, s.home, s.away)}
@@ -223,14 +235,21 @@ function SlipBody() {
                 <X size={14} />
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </div>
 
       <div className="border-t border-brand-dark-5 p-3 space-y-2.5 shrink-0">
+        {expired.length > 0 && (
+          <p className="text-[11px] text-amber-400">
+            {expired.length} selection{expired.length === 1 ? " has" : "s have"} already
+            kicked off and will not be saved.
+          </p>
+        )}
         <div className="flex items-center justify-between text-xs">
           <span className="text-gray-400">
-            {staged.length} of {MAX_SELECTIONS} selections
+            {live.length} of {MAX_SELECTIONS} selections
           </span>
           <span className="text-gray-400">
             All correct: <span className="text-white font-bold">{formatConfidence(combined)}</span>
@@ -240,7 +259,7 @@ function SlipBody() {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value.slice(0, MAX_TITLE))}
-          placeholder={defaultTitle(staged.length)}
+          placeholder={defaultTitle(live.length)}
           aria-label="Prediction name"
           className="w-full bg-brand-dark-3 border border-brand-dark-5 focus:border-brand-accent rounded-lg px-2.5 py-2 text-sm text-white placeholder-gray-600 outline-none transition-colors"
         />
@@ -254,11 +273,11 @@ function SlipBody() {
                 setJustSaved(true);
               }
             }}
-            disabled={saving}
+            disabled={saving || live.length === 0}
             className="w-full bg-brand-green hover:bg-brand-green-hover text-black text-sm font-bold py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Check size={15} />
-            {saving ? "Saving…" : "Save prediction"}
+            {saving ? "Saving…" : live.length === 0 ? "Nothing left to save" : "Save prediction"}
           </button>
         ) : (
           <button
@@ -276,6 +295,35 @@ function SlipBody() {
           Clear selections
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * How the saved slips are doing, at a glance.
+ *
+ * "Still running" is the number that can still land — the figure worth showing
+ * first, because a slip dies the moment one selection is wrong and there is
+ * otherwise no way to see how many are still in play without opening each one.
+ */
+function SavedSummary({ slips }: { slips: Slip[] }) {
+  const s = summariseSlips(slips);
+
+  return (
+    <div className="flex items-center gap-2 px-3 pt-3 shrink-0">
+      {[
+        { label: "Still running", value: s.running, tone: "text-white" },
+        { label: "Won", value: s.won, tone: "text-brand-accent" },
+        { label: "Lost", value: s.lost, tone: "text-red-400" },
+      ].map(({ label, value, tone }) => (
+        <div
+          key={label}
+          className="flex-1 rounded-lg bg-brand-dark-3 border border-brand-dark-5 px-2 py-1.5 text-center"
+        >
+          <div className={clsx("text-base font-bold leading-none tabular-nums", tone)}>{value}</div>
+          <div className="text-[10px] text-gray-500 leading-tight mt-1">{label}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -303,10 +351,13 @@ function SavedBody() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 space-y-2">
-      {slips.map((slip) => (
-        <SavedSlipCard key={slip.id} slip={slip} />
-      ))}
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <SavedSummary slips={slips} />
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {slips.map((slip) => (
+          <SavedSlipCard key={slip.id} slip={slip} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -316,6 +367,10 @@ export default function PredictionSlip() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { staged, slips } = usePredictions();
 
+  // Slips that have not lost — won, or still with selections to play. This is
+  // the number people want without opening the tab, so it rides on it.
+  const alive = summariseSlips(slips).alive;
+
   const tabBar = (
     <div className="flex border-b border-brand-dark-5 shrink-0">
       {(["slip", "saved"] as Tab[]).map((t) => (
@@ -323,13 +378,21 @@ export default function PredictionSlip() {
           key={t}
           onClick={() => setTab(t)}
           className={clsx(
-            "flex-1 py-3 text-sm font-semibold uppercase tracking-wide transition-colors",
+            "flex-1 py-3 text-sm font-semibold uppercase tracking-wide transition-colors flex items-center justify-center gap-1.5",
             tab === t
               ? "text-white border-b-2 border-brand-accent"
               : "text-gray-500 hover:text-gray-300"
           )}
         >
           {t === "slip" ? `Slip${staged.length ? ` (${staged.length})` : ""}` : "Saved"}
+          {t === "saved" && alive > 0 && (
+            <span
+              title={`${alive} of ${slips.length} predictions have not lost`}
+              className="bg-brand-green text-black text-[10px] font-bold min-w-[1.15rem] h-[1.15rem] px-1 rounded-full flex items-center justify-center tabular-nums"
+            >
+              {alive}
+            </span>
+          )}
         </button>
       ))}
     </div>

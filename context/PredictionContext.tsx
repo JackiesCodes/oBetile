@@ -16,6 +16,7 @@ import {
   canAdd,
   cleanNote,
   cleanTitle,
+  isPickable,
   withSelection,
   withoutFixture,
   type Outcome,
@@ -109,7 +110,10 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(STAGED_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setStaged(parsed);
+        // A slip left open overnight comes back full of matches that have since
+        // been played. Those are results, not predictions, so they are dropped
+        // rather than restored.
+        if (Array.isArray(parsed)) setStaged(parsed.filter((s) => isPickable(s)));
       }
     } catch {
       // A corrupted or unavailable store just means starting empty.
@@ -125,6 +129,9 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
   }, [staged]);
 
   const select = useCallback((selection: Selection) => {
+    // Second line of defence behind the button's own check: whatever route a
+    // selection arrives by, a match that is over never enters a slip.
+    if (!isPickable(selection)) return;
     setStaged((cur) => withSelection(cur, selection));
   }, []);
 
@@ -223,12 +230,17 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
   const saveSlip = useCallback(
     async (title: string): Promise<string | null> => {
       if (!user || staged.length === 0 || !hasSupabaseConfig()) return null;
+      // A panel left open can outlive its own fixtures. Saving what has since
+      // kicked off would write selections that settle immediately; the slip
+      // panel flags these so this is never a silent drop.
+      const fresh = staged.filter((s) => isPickable(s));
+      if (fresh.length === 0) return null;
       setSaving(true);
       try {
         const supabase = createClient();
         const { data, error } = await supabase
           .from("prediction_slips")
-          .insert({ user_id: user.id, title: cleanTitle(title, staged.length) })
+          .insert({ user_id: user.id, title: cleanTitle(title, fresh.length) })
           .select("id")
           .single();
 
@@ -236,7 +248,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
         const slipId = data.id as string;
 
         const { error: picksError } = await supabase.from("slip_picks").insert(
-          staged.map((s) => ({
+          fresh.map((s) => ({
             slip_id: slipId,
             fixture_id: Number(s.fixtureId),
             home_team: s.home,

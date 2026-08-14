@@ -2,7 +2,7 @@
 
 import { usePredictions } from "@/context/PredictionContext";
 import { oddsToPercent } from "@/lib/utils";
-import { labelFor } from "@/lib/slips";
+import { isPickable, labelFor } from "@/lib/slips";
 import { Match } from "@/types";
 import clsx from "clsx";
 
@@ -16,9 +16,14 @@ export default function OddsButton({ match, market, label }: Props) {
   const { select, deselect, isSelected, isStaged, canStage } = usePredictions();
   const odds = match.odds[market];
   const selected = isSelected(match.id, market);
+  // A match that is over cannot be predicted, only reported. Leaving these
+  // tappable let already-decided fixtures into slips, where they settled the
+  // moment they were saved.
+  const over = !isPickable(match);
   // A different outcome on a match already in the slip is a change of mind, so
   // it stays tappable; only a genuinely new fixture can hit the size cap.
-  const blocked = !selected && !isStaged(match.id) && !canStage(match.id);
+  const full = !selected && !isStaged(match.id) && !canStage(match.id);
+  const blocked = over || full;
 
   if (odds === null) {
     return (
@@ -44,21 +49,35 @@ export default function OddsButton({ match, market, label }: Props) {
       away: match.away,
       pick: market,
       confidence: pct,
+      // Carried so the slip can re-check for itself later; a status read once
+      // and stored would be stale by the time it mattered.
+      kickoff: match.kickoff ?? null,
     });
   };
 
   return (
     <button
       onClick={handleClick}
-      disabled={blocked}
+      // A selection already made stays removable even once the match is over,
+      // so nobody is stuck with a stale pick they cannot take back out.
+      disabled={blocked && !selected}
       aria-pressed={selected}
-      aria-label={`${labelFor(market, match.home, match.away)} ${pct}%`}
+      aria-label={
+        over
+          ? `${labelFor(market, match.home, match.away)} ${pct}% — match finished, no longer predictable`
+          : `${labelFor(market, match.home, match.away)} ${pct}%`
+      }
+      title={over ? "This match has already kicked off" : undefined}
       className={clsx(
         // Narrower on phones: three of these plus the kick-off time otherwise
         // leave no room for the team names on a 390px screen.
         "relative w-[3.1rem] h-12 sm:w-16 sm:h-14 shrink-0 flex flex-col items-center justify-center rounded text-xs font-semibold transition-all border overflow-hidden",
         selected
           ? "bg-brand-green text-black border-brand-accent shadow-[0_0_8px_rgba(0,185,9,0.4)]"
+          : over
+          ? // Still readable — the percentage is useful history — but plainly
+            // not something to tap.
+            "bg-brand-dark-4 text-white border-transparent opacity-40 cursor-not-allowed"
           : "bg-brand-dark-4 text-white border-transparent hover:border-brand-accent"
       )}
     >

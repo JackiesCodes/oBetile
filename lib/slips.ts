@@ -23,6 +23,41 @@ export interface Selection {
   kickoff?: string | null;
 }
 
+/**
+ * How long after kick-off a fixture stops being predictable.
+ *
+ * Ninety minutes plus half-time, extra time and a shootout still lands well
+ * inside three hours, so anything older than this is over whatever the cached
+ * status claims.
+ */
+export const PICKABLE_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Whether a fixture can still be predicted.
+ *
+ * Two ways a match stops being a prediction. The obvious one is that it has
+ * finished: the answer is printed on the page, so "predicting" it only records
+ * a result, and the slip settles the instant it is saved — which is exactly the
+ * bug that produced slips full of already-decided selections.
+ *
+ * The second is subtler and is what actually let it through: fixture lists are
+ * cached, so a match can still be labelled upcoming hours after it kicked off.
+ * The kick-off time is the fact that does not go stale, so it decides. A match
+ * genuinely in play stays pickable — the result is still unknown — which is why
+ * the window is a duration rather than "kick-off has passed".
+ */
+export function isPickable(
+  match: { status?: string | null; kickoff?: string | null },
+  now: Date = new Date()
+): boolean {
+  if (match.status === "finished") return false;
+  if (match.kickoff) {
+    const started = Date.parse(match.kickoff);
+    if (Number.isFinite(started) && now.getTime() - started > PICKABLE_WINDOW_MS) return false;
+  }
+  return true;
+}
+
 /** A saved selection, which may since have been settled. */
 export interface SavedPick extends Selection {
   result: PickResult | null;
@@ -109,6 +144,26 @@ export function slipOutcome(picks: SavedPick[]): "won" | "lost" | "pending" {
   if (t.wrong > 0) return "lost";
   if (t.pending > 0) return "pending";
   return t.correct > 0 ? "won" : "pending";
+}
+
+/**
+ * How a collection of slips is doing.
+ *
+ * "Alive" is the number still capable of landing — won plus anything with
+ * selections left to play. A slip is dead the moment one selection is wrong,
+ * because every selection has to come in.
+ */
+export function summariseSlips(slips: { picks: SavedPick[] }[]) {
+  let won = 0;
+  let lost = 0;
+  let running = 0;
+  for (const slip of slips) {
+    const outcome = slipOutcome(slip.picks);
+    if (outcome === "won") won++;
+    else if (outcome === "lost") lost++;
+    else running++;
+  }
+  return { won, lost, running, alive: won + running, total: slips.length };
 }
 
 /**

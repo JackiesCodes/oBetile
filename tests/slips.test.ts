@@ -6,13 +6,16 @@ import {
   combinedConfidence,
   defaultTitle,
   formatConfidence,
+  isPickable,
   labelFor,
   outcomeFor,
   slipOutcome,
+  summariseSlips,
   tally,
   withSelection,
   withoutFixture,
   MAX_SELECTIONS,
+  PICKABLE_WINDOW_MS,
   type SavedPick,
   type Selection,
 } from "@/lib/slips";
@@ -172,5 +175,80 @@ describe("titles and notes", () => {
 
   it("treats a blank note as no note", () => {
     expect(cleanNote("  ")).toBeNull();
+  });
+});
+
+describe("isPickable", () => {
+  // The bug this guards: five picks were saved at 07:29 on matches that had
+  // kicked off at 00:00 and finished hours earlier. Every one settled the
+  // instant it was written, because the outcome was already known.
+  const now = new Date("2026-08-14T07:29:00Z");
+  const at = (iso: string) => ({ status: "upcoming", kickoff: iso });
+
+  it("refuses a match that has finished", () => {
+    expect(isPickable({ status: "finished" }, now)).toBe(false);
+  });
+
+  it("refuses a match that kicked off hours ago, whatever the status claims", () => {
+    // Fixture lists are cached, so "upcoming" survives long past kick-off.
+    // The kick-off time is the fact that does not go stale.
+    expect(isPickable(at("2026-08-14T00:00:00Z"), now)).toBe(false);
+  });
+
+  it("allows a match still to come", () => {
+    expect(isPickable(at("2026-08-14T19:00:00Z"), now)).toBe(true);
+  });
+
+  it("allows a match in play, where the result is still unknown", () => {
+    expect(isPickable({ status: "live", kickoff: "2026-08-14T07:00:00Z" }, now)).toBe(true);
+  });
+
+  it("closes exactly at the end of the window, not before", () => {
+    const start = new Date(now.getTime() - PICKABLE_WINDOW_MS + 60_000).toISOString();
+    expect(isPickable(at(start), now)).toBe(true);
+    const older = new Date(now.getTime() - PICKABLE_WINDOW_MS - 60_000).toISOString();
+    expect(isPickable(at(older), now)).toBe(false);
+  });
+
+  it("does not block a fixture whose kick-off is missing or unreadable", () => {
+    // Better to allow an upcoming match than to make the slip unusable
+    // wherever a kick-off failed to come through.
+    expect(isPickable({ status: "upcoming" }, now)).toBe(true);
+    expect(isPickable({ status: "upcoming", kickoff: "not a date" }, now)).toBe(true);
+    expect(isPickable({ status: "upcoming", kickoff: null }, now)).toBe(true);
+  });
+
+  it("still refuses a finished match with no kick-off recorded", () => {
+    expect(isPickable({ status: "finished", kickoff: null }, now)).toBe(false);
+  });
+});
+
+describe("summariseSlips", () => {
+  const slip = (...results: SavedPick["result"][]) => ({
+    picks: results.map((r) => ({ ...sel("1"), result: r })) as SavedPick[],
+  });
+
+  it("counts won, lost and still running", () => {
+    const s = summariseSlips([
+      slip("correct", "correct"),
+      slip("correct", "wrong"),
+      slip("correct", null),
+      slip(null, null),
+    ]);
+    expect(s).toMatchObject({ won: 1, lost: 1, running: 2, total: 4 });
+  });
+
+  it("treats anything not yet lost as alive", () => {
+    // The badge exists to answer "how many can still land", so a won slip and
+    // an unfinished one both count.
+    expect(summariseSlips([slip("correct"), slip(null), slip("wrong")]).alive).toBe(2);
+  });
+
+  it("is all zeros for no slips", () => {
+    expect(summariseSlips([])).toMatchObject({ won: 0, lost: 0, running: 0, alive: 0, total: 0 });
+  });
+
+  it("kills a slip on the first wrong selection, however many are left", () => {
+    expect(summariseSlips([slip("wrong", null, null)]).alive).toBe(0);
   });
 });
