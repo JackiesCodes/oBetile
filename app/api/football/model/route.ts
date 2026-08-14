@@ -138,12 +138,20 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. One standings call per distinct competition, not per fixture.
+    //
+    // The key is recorded against the fixture rather than rebuilt later. When
+    // the upstream omits league.season the key used here came from
+    // resolveSeason() while the lookup below rebuilt it from the missing field,
+    // so it read `39:undefined`, missed every time, and those fixtures silently
+    // got no prediction at all.
     const tables = new Map<string, TeamRecord[]>();
+    const keyForFixture = new Map<number, string>();
     for (const f of fixtures) {
       const leagueId = f.league?.id;
       if (!leagueId) continue;
       const season = f.league?.season ? String(f.league.season) : await resolveSeason(leagueId);
       const key = `${leagueId}:${season}`;
+      keyForFixture.set(f.fixture.id, key);
       if (tables.has(key)) continue;
       try {
         tables.set(key, await leagueTable(leagueId, season));
@@ -163,8 +171,7 @@ export async function GET(req: NextRequest) {
       const awayId = f.teams?.away?.id;
       if (!leagueId || !homeId || !awayId) continue;
 
-      const key = `${leagueId}:${f.league?.season}`;
-      const table = tables.get(key) ?? [];
+      const table = tables.get(keyForFixture.get(f.fixture.id) ?? "") ?? [];
       const home = table.find((t) => t.teamId === homeId);
       const away = table.find((t) => t.teamId === awayId);
       if (!home || !away) continue;

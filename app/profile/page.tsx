@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { usePredictions } from "@/context/PredictionContext";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 import { Check, Pencil } from "lucide-react";
 
@@ -30,6 +31,8 @@ interface RecentPick {
   created_at: string;
   /** Written by the prediction provider once the match finishes. */
   result: "correct" | "wrong" | "push" | null;
+  /** Which saved prediction this selection belongs to. */
+  slipTitle: string;
 }
 
 const PICK_LABEL: Record<string, string> = { home: "Home Win", draw: "Draw", away: "Away Win" };
@@ -39,9 +42,15 @@ export default function ProfilePage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // Selections live in slips now. Reading them from the provider that already
+  // loads and settles them keeps this page from drifting out of step with the
+  // slip panel — which is exactly what happened when it read the old
+  // user_picks table directly: that table stopped being written to when slips
+  // arrived, so every figure here froze at the migration and never moved again.
+  const { slips, slipsLoading } = usePredictions();
+
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [stats, setStats] = useState<Stats>({ picks: 0, favourites: 0, settled: 0, correct: 0 });
-  const [recentPicks, setRecentPicks] = useState<RecentPick[]>([]);
+  const [favourites, setFavourites] = useState(0);
   const [username, setUsername] = useState("");
   const [editingUsername, setEditingUsername] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -80,28 +89,42 @@ export default function ProfilePage() {
     const supabase = createClient();
 
     async function load() {
-      const [{ data: prof }, { count: pickCount }, { count: favCount }, { data: picks }, { data: settledRows }] = await Promise.all([
+      const [{ data: prof }, { count: favCount }] = await Promise.all([
         supabase.from("profiles").select("username, avatar_url, created_at").eq("id", user!.id).single(),
-        supabase.from("user_picks").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
         supabase.from("favourites").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
-        supabase.from("user_picks").select("id, fixture_id, home_team, away_team, pick, created_at, result").eq("user_id", user!.id).order("created_at", { ascending: false }).limit(5),
-        supabase.from("user_picks").select("result").eq("user_id", user!.id).not("result", "is", null),
       ]);
 
       if (prof) { setProfile(prof); setUsername(prof.username ?? ""); }
-
-      const settled = (settledRows as { result: string }[] | null) ?? [];
-      setStats({
-        picks: pickCount ?? 0,
-        favourites: favCount ?? 0,
-        settled: settled.length,
-        correct: settled.filter((r) => r.result === "correct").length,
-      });
-      setRecentPicks((picks as RecentPick[]) ?? []);
+      setFavourites(favCount ?? 0);
     }
 
     load();
   }, [user]);
+
+  // Every selection across every slip, newest first.
+  const allPicks = slips
+    .flatMap((slip) =>
+      slip.picks.map((p) => ({
+        id: `${slip.id}:${p.fixtureId}`,
+        fixture_id: Number(p.fixtureId),
+        home_team: p.home,
+        away_team: p.away,
+        pick: p.pick,
+        created_at: slip.createdAt,
+        result: p.result,
+        slipTitle: slip.title,
+      }))
+    )
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  const settledPicks = allPicks.filter((p) => p.result === "correct" || p.result === "wrong");
+  const stats: Stats = {
+    picks: allPicks.length,
+    favourites,
+    settled: settledPicks.length,
+    correct: settledPicks.filter((p) => p.result === "correct").length,
+  };
+  const recentPicks: RecentPick[] = allPicks.slice(0, 5);
 
   const saveUsername = async () => {
     if (!user || !hasSupabaseConfig()) return;
@@ -223,7 +246,11 @@ export default function ProfilePage() {
         {/* Recent picks */}
         <div className="bg-brand-dark-2 rounded-2xl border border-brand-dark-5 p-5">
           <p className="text-sm font-semibold text-gray-300 mb-3">Recent Picks</p>
-          {recentPicks.length === 0 ? (
+          {slipsLoading ? (
+            // Without this, the empty state flashed before the slips arrived and
+            // told people with a full history that they had never picked.
+            <p className="text-gray-600 text-sm text-center py-4">Loading…</p>
+          ) : recentPicks.length === 0 ? (
             <p className="text-gray-600 text-sm text-center py-4">No picks yet. Start picking matches!</p>
           ) : (
             <div className="space-y-2">
@@ -236,6 +263,9 @@ export default function ProfilePage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-300 truncate">{pick.home_team} vs {pick.away_team}</p>
                     <p className={`text-xs font-semibold mt-0.5 ${PICK_COLOR[pick.pick]}`}>{PICK_LABEL[pick.pick]}</p>
+                    {/* A selection belongs to a saved prediction now, not to
+                        nothing in particular. */}
+                    <p className="text-[10px] text-gray-600 truncate mt-0.5">{pick.slipTitle}</p>
                   </div>
 
                   {/* Verdict, or a note that the match has not settled yet —

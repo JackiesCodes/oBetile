@@ -6,6 +6,7 @@ import SportsTabBar from "@/components/SportsTabBar";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
+import { getDateParams } from "@/lib/match-dates";
 import { withOdds, type OddsMap } from "@/lib/odds";
 import { useLiveData } from "@/lib/use-live-data";
 import { Zap } from "lucide-react";
@@ -76,20 +77,6 @@ function dedupe(matches: Match[]): Match[] {
     seen.add(m.id);
     return true;
   });
-}
-
-function getDateParams(activeDate: string): Record<string, string> {
-  const d = new Date();
-  if (activeDate === "Tomorrow") {
-    d.setDate(d.getDate() + 1);
-    return { date: d.toISOString().split("T")[0] };
-  }
-  if (activeDate === "This Week") {
-    const from = d.toISOString().split("T")[0];
-    const to = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-    return { from, to };
-  }
-  return { date: d.toISOString().split("T")[0] };
 }
 
 export default function SoccerPage() {

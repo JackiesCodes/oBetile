@@ -4,14 +4,24 @@ import { serverErrorResponse } from "@/lib/api-error";
 
 // GET ?fixtures=123,456,789
 // Returns { "123": { "1x2": { home: 5, draw: 2, away: 3 } }, "456": { ... } }
+
+/** A page shows a day of fixtures; well above anything the UI asks for. */
+const MAX_FIXTURES = 200;
 export async function GET(req: NextRequest) {
   const raw = new URL(req.url).searchParams.get("fixtures");
   if (!raw) return NextResponse.json({});
 
-  const ids = raw
-    .split(",")
-    .map((s) => parseInt(s.trim(), 10))
-    .filter((n) => !isNaN(n));
+  // Bounded and positive-only, matching every other id-taking route. This one
+  // accepted negatives, zero and an unlimited count, so a single request could
+  // ask the database for an arbitrarily large `in` list.
+  const ids = Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    )
+  ).slice(0, MAX_FIXTURES);
 
   if (ids.length === 0) return NextResponse.json({});
 
