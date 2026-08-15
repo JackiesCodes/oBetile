@@ -61,7 +61,26 @@ describe("a whole day of prices is reachable", () => {
   it("does not lose good pages when one fails", () => {
     // A rejected page used to abort the whole sweep. A partial map still fills
     // most of the list, and what it misses falls through to the model.
-    expect(ROUTE).toMatch(/orNull/);
+    expect(ROUTE).toMatch(/settle\(/);
+  });
+
+  it("retries the pages it missed rather than leaving the day short", () => {
+    // Measured live: a cold sweep got 43 of 72 and simply asking again got 53,
+    // so the misses are transient and a second pass is worth having.
+    expect(ROUTE).toMatch(/RETRY_CONCURRENCY/);
+    expect(ROUTE).toMatch(/RETRY_PAUSE_MS/);
+  });
+
+  it("retries more gently than the pass that just failed", () => {
+    expect(constant("RETRY_CONCURRENCY")).toBeLessThan(constant("PAGE_CONCURRENCY"));
+  });
+
+  it("says why a sweep fell short instead of only that it did", () => {
+    // The first version swallowed the reason, so a live shortfall left nothing
+    // in the logs to diagnose it with.
+    expect(ROUTE).toMatch(/x-odds-incomplete/);
+    expect(ROUTE).toMatch(/console\.warn\("odds sweep incomplete"/);
+    expect(ROUTE).toMatch(/reasons/);
   });
 
   it("reports the upstream total rather than its own cap", () => {

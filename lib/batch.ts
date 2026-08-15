@@ -32,3 +32,26 @@ export async function inBatches<T>(
 export function orNull<T>(task: () => Promise<T>): () => Promise<T | null> {
   return () => task().then((value) => value).catch(() => null);
 }
+
+export type Settled<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: string };
+
+/**
+ * Like orNull, but keeps why it failed.
+ *
+ * Isolating a failure and discarding its cause are different things, and the
+ * first version of the odds sweep conflated them: a live run came back with 43
+ * of 72 pages and the logs said nothing at all, so the cause had to be guessed
+ * at from the outside. Keeping the message costs nothing and turns "some pages
+ * are missing" into a specific, checkable claim.
+ */
+export function settle<T>(task: () => Promise<T>): () => Promise<Settled<T>> {
+  return () =>
+    task()
+      .then((value) => ({ ok: true as const, value }))
+      .catch((e: unknown) => ({
+        ok: false as const,
+        reason: e instanceof Error ? e.message : String(e),
+      }));
+}

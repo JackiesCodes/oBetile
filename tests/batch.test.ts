@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inBatches, orNull } from "@/lib/batch";
+import { inBatches, orNull, settle } from "@/lib/batch";
 
 /** A task that takes real time and records how many were running alongside it. */
 function makeTracker() {
@@ -88,5 +88,37 @@ describe("orNull", () => {
     // null is checked for explicitly at the call site; undefined would slip
     // past a truthiness test that happens to be written the other way round.
     expect(await orNull(async () => { throw new Error("x"); })()).toBeNull();
+  });
+});
+
+describe("settle", () => {
+  it("keeps the value on success", async () => {
+    const r = await settle(async () => ({ page: 7 }))();
+    expect(r).toEqual({ ok: true, value: { page: 7 } });
+  });
+
+  it("keeps why it failed rather than only that it failed", async () => {
+    // The whole point: a sweep that comes back short must be able to say what
+    // went wrong, not just how many are missing.
+    const r = await settle(async () => { throw new Error("429 Too Many Requests"); })();
+    expect(r).toEqual({ ok: false, reason: "429 Too Many Requests" });
+  });
+
+  it("copes with something thrown that is not an Error", async () => {
+    expect(await settle(async () => { throw "plain string"; })()).toEqual({
+      ok: false,
+      reason: "plain string",
+    });
+  });
+
+  it("lets a batch finish and report a mix of both", async () => {
+    const tasks = [
+      settle(async () => "a"),
+      settle(async () => { throw new Error("boom"); }),
+      settle(async () => "c"),
+    ];
+    const out = await inBatches(tasks, 2);
+    expect(out.filter((r) => r.ok)).toHaveLength(2);
+    expect(out.filter((r) => !r.ok)).toEqual([{ ok: false, reason: "boom" }]);
   });
 });

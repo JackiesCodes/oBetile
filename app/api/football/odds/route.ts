@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetchRaw } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import { deVig, parseOdd, type OneXTwo } from "@/lib/odds";
-import { inBatches, orNull } from "@/lib/batch";
+import { inBatches, settle } from "@/lib/batch";
 
 /**
  * Win probabilities for a whole day's fixtures, expressed as fair decimal odds.
@@ -78,6 +78,15 @@ const MAX_PAGES = 120;
  */
 const PAGE_CONCURRENCY = 6;
 
+/**
+ * The retry pass goes slower and narrower than the first.
+ *
+ * If six at a time is what the upstream objected to, repeating it at the same
+ * rate would fail the same way. A pause first, then half the width.
+ */
+const RETRY_CONCURRENCY = 3;
+const RETRY_PAUSE_MS = 400;
+
 function readOneXTwo(entry: APIOddsEntry): OneXTwo | null {
   // Any bookmaker will do — they are taken only as a probability estimate, and
   // the first present is the one most likely to have a full set of prices.
@@ -141,15 +150,64 @@ export async function GET(req: NextRequest) {
 
     const totalPages = Math.min(first.paging.total, MAX_PAGES);
     let fetched = 1;
+    const failures: string[] = [];
+
+    /**
+     * Fetch a set of pages, collect what lands, and hand back what did not.
+     *
+     * The reason a page failed is recorded rather than discarded. The first
+     * version swallowed it, so when a live sweep came back with 43 of 72 pages
+     * there was nothing in the logs to say why — the diagnosis had to be
+     * guessed at, which is exactly what these headers exist to prevent.
+     */
+    const sweep = async (pages: number[], concurrency: number) => {
+      const settled = await inBatches(
+        pages.map((page) => settle(() => fetchPage(page))),
+        concurrency
+      );
+      const missed: number[] = [];
+      const reasons = new Set<string>();
+      settled.forEach((entry, i) => {
+        if (!entry.ok) {
+          missed.push(pages[i]);
+          reasons.add(entry.reason);
+          return;
+        }
+        fetched += 1;
+        collect(entry.value.response);
+      });
+      return { missed, reasons: [...reasons] };
+    };
 
     if (totalPages > 1) {
-      const rest = Array.from({ length: totalPages - 1 }, (_, i) => () => fetchPage(i + 2));
-      // orNull keeps one bad page from losing the pages that succeeded.
-      const settled = await inBatches(rest.map(orNull), PAGE_CONCURRENCY);
-      for (const page of settled) {
-        if (!page) continue;
-        fetched += 1;
-        collect(page.response);
+      const rest = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+      let pass = await sweep(rest, PAGE_CONCURRENCY);
+
+      /*
+       * One retry, slower and narrower.
+       *
+       * Measured live: a cold sweep returned 43 of 72 pages, and simply asking
+       * again returned 53 — the successes are cached by then, so the misses get
+       * the whole budget. That says the failures are transient rather than
+       * pages that do not exist, and that a second pass inside the same request
+       * is worth far more than leaving a third of the day unpriced until
+       * somebody happens to reload.
+       */
+      if (pass.missed.length > 0) {
+        failures.push(
+          `${pass.missed.length}/${totalPages} missed: ${pass.reasons.join(" | ")}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, RETRY_PAUSE_MS));
+        pass = await sweep(pass.missed, RETRY_CONCURRENCY);
+        if (pass.missed.length > 0) {
+          failures.push(
+            `${pass.missed.length} still missing after retry: ${pass.reasons.join(" | ")}`
+          );
+        }
+      }
+
+      if (failures.length > 0) {
+        console.warn("odds sweep incomplete", { date, totalPages, fetched, failures });
       }
     }
 
@@ -164,6 +222,10 @@ export async function GET(req: NextRequest) {
         "x-odds-pages-available": String(first.paging.total),
         "x-odds-pages-fetched": String(fetched),
         "x-odds-fixtures": String(Object.keys(result).length),
+        // Empty when the sweep was clean. Says how far short it fell and
+        // whether the retry closed the gap, so a shortfall is visible from the
+        // response rather than only in the logs.
+        "x-odds-incomplete": failures.join("; "),
       },
     });
   } catch (e) {
