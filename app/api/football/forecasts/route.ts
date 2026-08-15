@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
-import { normaliseToFairOdds } from "@/lib/odds";
+import { isPlaceholderForecast, normaliseToFairOdds } from "@/lib/odds";
 
 /**
  * Model forecasts for fixtures that carry no bookmaker price.
@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const result: Record<string, { home: number; draw: number; away: number }> = {};
+    let rejected = 0;
 
     // Sequential: a burst of twenty simultaneous requests is exactly what the
     // active-leagues route was rejected for.
@@ -76,6 +77,14 @@ export async function GET(req: NextRequest) {
       const away = parsePercent(percent?.away);
       if (home === null || draw === null || away === null) continue;
 
+      // The upstream answers from a small set of fixed buckets rather than
+      // forecasting the fixture, which put an identical 45/45/10 on unrelated
+      // matches all down the list. See isPlaceholderForecast.
+      if (isPlaceholderForecast({ home, draw, away })) {
+        rejected++;
+        continue;
+      }
+
       const fair = normaliseToFairOdds({ home, draw, away });
       if (fair) result[String(id)] = fair;
     }
@@ -85,6 +94,7 @@ export async function GET(req: NextRequest) {
         "Cache-Control": `s-maxage=${FORECAST_TTL}, stale-while-revalidate=300`,
         "x-forecasts-requested": String(ids.length),
         "x-forecasts-returned": String(Object.keys(result).length),
+        "x-forecasts-placeholder": String(rejected),
       },
     });
   } catch (e) {

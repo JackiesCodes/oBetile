@@ -15,10 +15,18 @@ import { Zap } from "lucide-react";
  * Bookmakers price only a minority of fixtures, so after odds land the gaps are
  * filled from two further sources in turn.
  *
- * Bounded deliberately: /predictions has no bulk form, so each fixture is its
- * own upstream request. Filling a whole day would be hundreds of calls, so this
- * covers the top of the feed — what a visitor actually sees first — and leaves
- * the rest showing a dash.
+ * Our own model goes first. Measured against production over the same fifteen
+ * fixtures, it answered all fifteen with figures that differed match to match,
+ * while the provider's forecast answered thirteen using only three distinct
+ * values — 45/45/10, 10/45/45 and 35/35/30 — which is what put the same
+ * percentages on unrelated matches all down the list. The model is also cheaper
+ * per batch: one standings call per competition against one prediction call per
+ * fixture.
+ *
+ * Bounded deliberately: /predictions has no bulk form, so each fixture left
+ * over is its own upstream request. Filling a whole day would be hundreds of
+ * calls, so this covers the top of the feed — what a visitor actually sees
+ * first — and leaves the rest showing a dash.
  */
 const FORECAST_FILL_LIMIT = 20;
 
@@ -33,10 +41,9 @@ async function fillMissingOdds(
 
   if (missing.length === 0) return;
 
-  // Two sources, cheapest first. The provider's own forecast is one request per
-  // fixture but needs no other data; our model costs one call per competition
-  // and answers for anything with a published table, including matches the
-  // provider knows nothing about.
+  // Best source first. The model costs one call per competition and answers
+  // for anything with a published table; the provider's forecast is one call
+  // per fixture and mostly returns a bucket rather than a prediction.
   const filled = new Set<string>();
 
   const merge = (data: unknown) => {
@@ -47,17 +54,17 @@ async function fillMissingOdds(
   };
 
   try {
-    const res = await fetch(`/api/football/forecasts?ids=${missing.join(",")}`);
+    const res = await fetch(`/api/football/model?ids=${missing.join(",")}`);
     if (res.ok) merge(await res.json());
   } catch {
-    // Fall through to the model.
+    // Fall through to the provider's forecast.
   }
 
   const stillMissing = missing.filter((id) => !filled.has(id));
   if (stillMissing.length === 0) return;
 
   try {
-    const res = await fetch(`/api/football/model?ids=${stillMissing.join(",")}`);
+    const res = await fetch(`/api/football/forecasts?ids=${stillMissing.join(",")}`);
     if (res.ok) merge(await res.json());
   } catch {
     // A failed fill just leaves those rows with a dash.

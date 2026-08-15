@@ -81,6 +81,38 @@ export function normaliseToFairOdds(percents: OneXTwo): OneXTwo | null {
   };
 }
 
+/**
+ * Whether a set of percentages is a placeholder rather than a forecast.
+ *
+ * The provider's /predictions endpoint does not estimate the fixture in front
+ * of it. Sampled live across thirteen fixtures in unrelated competitions it
+ * returned exactly three values — 45/45/10, 10/45/45 and 35/35/30 — the same
+ * handful of buckets over and over, which is why identical percentages appeared
+ * on match after match down the feed.
+ *
+ * The tell is an exact tie. Every bucket has the draw landing on precisely the
+ * same whole number as one of the sides, because they are labels chosen from a
+ * short list rather than a calculation. A real estimate lands on continuous
+ * values that essentially never coincide: over the same fixtures our own model
+ * produced 44/23/33, 33/28/39, 53/24/23, 23/41/36, 62/25/13, 33/38/29 and
+ * 23/31/46 — not one exact tie among them.
+ *
+ * An earlier version of this rule refused any forecast whose draw was the
+ * highest outcome, on the theory that draws never lead. Two of those seven
+ * model outputs put the draw first, so that test threw away real predictions;
+ * the tie is the property that actually separates the two.
+ *
+ * Refusing leaves the row to a better source, and failing that a dash — which
+ * honestly reads as "no forecast", where a confident 45% does not.
+ */
+export function isPlaceholderForecast(percents: OneXTwo): boolean {
+  return (
+    percents.home === percents.draw ||
+    percents.draw === percents.away ||
+    percents.home === percents.away
+  );
+}
+
 /** Fixture id -> fair 1X2 odds, as returned by /api/football/odds. */
 export type OddsMap = Record<string, OneXTwo>;
 
