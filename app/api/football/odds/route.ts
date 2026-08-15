@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetchRaw } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import { deVig, parseOdd, type OneXTwo } from "@/lib/odds";
+import { inBatches, orNull } from "@/lib/batch";
 
 /**
  * Win probabilities for a whole day's fixtures, expressed as fair decimal odds.
@@ -28,24 +29,54 @@ interface APIOddsEntry {
   }[];
 }
 
+/**
+ * A cold sweep of a whole day is dozens of upstream pages, which comfortably
+ * outlives the default function timeout even batched. Cached sweeps return
+ * immediately; this ceiling only applies the first time after the cache turns
+ * over.
+ */
+export const maxDuration = 60;
+
 /** API-Football's bet id for the 1X2 / Match Winner market. */
 const MATCH_WINNER_BET = "1";
 
 /**
- * Odds move, but not minute to minute for our purposes, and every page costs a
- * request. Ten minutes keeps a busy homepage to a handful of calls an hour.
+ * Pre-match 1X2 prices drift rather than jump, and every page costs a request,
+ * so a full sweep is worth keeping for a while.
+ *
+ * An hour, because the arithmetic decides it rather than taste. A whole day is
+ * around 72 pages; against the live account's 7,500 a day that is 23% of the
+ * allowance at this cadence, or 38% if a day ever reached the ceiling below.
+ * Fifteen minutes — the old value, when only three pages were fetched — would
+ * be 92% and 154%, which is why widening the sweep without slowing it down
+ * would have swapped missing percentages for an exhausted quota.
+ *
+ * stale-while-revalidate keeps the response instant across the turnover.
  */
-const ODDS_TTL = 900;
+const ODDS_TTL = 3600;
 
 /**
- * /odds returns ten fixtures a page, and a normal day runs to about twenty-two
- * pages. Three covered barely a seventh of them, so most rows showed a dash
- * even where a price existed. Pages are fetched one at a time, so this is a
- * ceiling on total requests rather than on burst size, and the fifteen-minute
- * cache keeps a full sweep to roughly ninety requests an hour at worst against
- * a 7,500/day allowance.
+ * A ceiling, not a target: the loop stops at whatever the upstream reports.
+ *
+ * This was 25 while a day genuinely ran to about twenty-two pages. It does not
+ * any more — production reported 72 pages available against 25 fetched, so two
+ * thirds of the fixtures that had a published price were being shown a dash.
+ * 120 clears that with room for a busier Saturday while still bounding what a
+ * pathological day could cost; x-odds-pages-available reports if it is ever
+ * reached.
  */
-const MAX_PAGES = 25;
+const MAX_PAGES = 120;
+
+/**
+ * How many pages are in flight at once.
+ *
+ * Fetching seventy-odd pages strictly one after another is what the old cap
+ * really protected against: not quota, but the wall clock — the request would
+ * run past the function's time limit long before it ran out of allowance. A
+ * handful at a time finishes in seconds while staying far below the 300 a
+ * minute the account permits.
+ */
+const PAGE_CONCURRENCY = 6;
 
 function readOneXTwo(entry: APIOddsEntry): OneXTwo | null {
   // Any bookmaker will do — they are taken only as a probability estimate, and
@@ -80,21 +111,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const result: Record<string, OneXTwo> = {};
-    let page = 1;
-    let totalPages = 1;
 
-    // Sequential, not parallel: pages are fetched one after another so a busy
-    // day cannot produce a burst of simultaneous upstream requests.
-    while (page <= Math.min(totalPages, MAX_PAGES)) {
-      const { response, paging } = await apiFetchRaw<APIOddsEntry[]>(
-        "/odds",
-        { date, bet: MATCH_WINNER_BET, page: String(page) },
-        ODDS_TTL
-      );
-
-      totalPages = paging.total;
-
-      for (const entry of response ?? []) {
+    const collect = (entries: APIOddsEntry[] | undefined) => {
+      for (const entry of entries ?? []) {
         const fixtureId = entry.fixture?.id;
         if (!fixtureId) continue;
 
@@ -106,18 +125,44 @@ export async function GET(req: NextRequest) {
         const fair = deVig(raw);
         if (fair) result[String(fixtureId)] = fair;
       }
+    };
 
-      page += 1;
+    const fetchPage = (page: number) =>
+      apiFetchRaw<APIOddsEntry[]>(
+        "/odds",
+        { date, bet: MATCH_WINNER_BET, page: String(page) },
+        ODDS_TTL
+      );
+
+    // The first page is also how many there are, so it has to land before the
+    // rest can be scheduled.
+    const first = await fetchPage(1);
+    collect(first.response);
+
+    const totalPages = Math.min(first.paging.total, MAX_PAGES);
+    let fetched = 1;
+
+    if (totalPages > 1) {
+      const rest = Array.from({ length: totalPages - 1 }, (_, i) => () => fetchPage(i + 2));
+      // orNull keeps one bad page from losing the pages that succeeded.
+      const settled = await inBatches(rest.map(orNull), PAGE_CONCURRENCY);
+      for (const page of settled) {
+        if (!page) continue;
+        fetched += 1;
+        collect(page.response);
+      }
     }
 
     return NextResponse.json(result, {
       headers: {
         "Cache-Control": `s-maxage=${ODDS_TTL}, stale-while-revalidate=120`,
-        // Coverage diagnostics: /odds paginates ~10 fixtures per page, so if
-        // pages-available exceeds pages-fetched the day is being truncated and
-        // most rows will show no percentage.
-        "x-odds-pages-fetched": String(Math.min(totalPages, MAX_PAGES)),
-        "x-odds-pages-available": String(totalPages),
+        // Coverage diagnostics. pages-available is what the upstream reports
+        // before any cap, and pages-fetched counts what actually came back, so
+        // a gap between them means the day was truncated and those rows will
+        // show no percentage. Reporting the capped figure as "available" would
+        // have hidden exactly the shortfall these headers exist to reveal.
+        "x-odds-pages-available": String(first.paging.total),
+        "x-odds-pages-fetched": String(fetched),
         "x-odds-fixtures": String(Object.keys(result).length),
       },
     });
