@@ -12,6 +12,31 @@ import { cookies } from "next/headers";
 export const hasSupabaseConfig = () =>
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
+/**
+ * A client carrying no session, for reads that are public anyway.
+ *
+ * Vote tallies are readable by everyone — the policy is literally
+ * `using (true)` — so attaching the caller's cookies adds nothing but a token
+ * to validate. That is not free: production returned PGRST303, "JWT issued at
+ * future", when a visitor's device clock ran slightly ahead of Supabase's, and
+ * PostgREST refused a query that never needed the token at all. Sending no
+ * session removes the failure rather than catching it.
+ *
+ * Only for genuinely public data. Anything scoped to a user must use
+ * createClient(), which is what carries the identity RLS reads.
+ */
+export const createPublicClient = () =>
+  createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => [],
+        setAll: () => {},
+      },
+    }
+  );
+
 export const createClient = async () => {
   const cookieStore = await cookies();
   return createServerClient(

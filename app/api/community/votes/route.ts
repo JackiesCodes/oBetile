@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { createClient, createPublicClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { serverErrorResponse, unconfiguredResponse } from "@/lib/api-error";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isValidVote } from "@/lib/vote-markets";
@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const supabase = await createClient();
+    // Tallies are public, so this deliberately sends no session — see
+    // createPublicClient for the clock-skew failure that motivated it.
+    const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("match_market_votes")
       .select("market, selection")

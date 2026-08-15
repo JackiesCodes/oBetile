@@ -32,11 +32,14 @@ export default function LeagueSection({ league, country, leagueId, matches }: Pr
 
     const ids = matches.map((m) => m.id).join(",");
     fetch(`/api/community/votes/batch?fixtures=${ids}`)
-      .then((r) => r.json())
+      // Checked rather than assumed: an error body parses as JSON perfectly
+      // well, and iterating one happened to yield nothing only by luck.
+      .then((r) => (r.ok ? r.json() : {}))
       .then((data: Record<string, { "1x2"?: { home: number; draw: number; away: number } }>) => {
+        if (!data || typeof data !== "object") return;
         const mapped: FixtureVotes = {};
         for (const [fixtureId, markets] of Object.entries(data)) {
-          if (markets["1x2"]) {
+          if (markets && typeof markets === "object" && markets["1x2"]) {
             mapped[fixtureId] = markets["1x2"];
           }
         }

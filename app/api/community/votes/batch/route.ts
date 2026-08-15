@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
+import { createPublicClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { serverErrorResponse, unconfiguredResponse } from "@/lib/api-error";
 
 // GET ?fixtures=123,456,789
@@ -27,13 +27,21 @@ export async function GET(req: NextRequest) {
   if (ids.length === 0) return NextResponse.json({});
 
   try {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("match_market_votes")
       .select("fixture_id, market, selection")
       .in("fixture_id", ids);
 
-    if (error) return serverErrorResponse("community.votes.batch", error);
+    // Logged, but answered as an empty tally rather than a 500. These counts
+    // are decoration on the match list — the same chips render empty when
+    // nobody has voted — so failing the request gains the visitor nothing and
+    // turns a cosmetic gap into an error in their console. Writes are held to
+    // the opposite standard: they report every failure.
+    if (error) {
+      console.error("community.votes.batch failed", error);
+      return NextResponse.json({});
+    }
 
     const result: Record<string, Record<string, Record<string, number>>> = {};
     for (const row of data ?? []) {
