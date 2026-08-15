@@ -2,17 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/server";
 import { serverErrorResponse, unconfiguredResponse } from "@/lib/api-error";
 import { checkRateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { isValidVote } from "@/lib/vote-markets";
 
-/**
- * Votes are counted straight out of these columns, so anything accepted here is
- * permanent, publicly-visible tally data. Restrict both fields to the markets
- * the UI actually offers rather than storing arbitrary caller-supplied strings.
- */
-const MARKETS: Record<string, ReadonlySet<string>> = {
-  "1x2": new Set(["home", "draw", "away"]),
-  btts: new Set(["yes", "no"]),
-  ou: new Set(["over", "under"]),
-};
 
 /** Fixture ids come from API-Football and are always positive integers. */
 function parseFixtureId(raw: unknown): number | null {
@@ -70,7 +61,7 @@ export async function POST(req: NextRequest) {
     if (fixture_id === null) {
       return NextResponse.json({ error: "valid fixture_id required" }, { status: 400 });
     }
-    if (!MARKETS[market]?.has(selection)) {
+    if (!isValidVote(market, selection)) {
       return NextResponse.json(
         { error: "Unsupported market or selection" },
         { status: 400 }

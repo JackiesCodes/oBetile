@@ -32,7 +32,30 @@ export async function GET(req: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error) return serverErrorResponse("community.posts", error);
-    return NextResponse.json(data ?? []);
+    const posts = data ?? [];
+
+    /*
+     * Whether the caller has already liked each post.
+     *
+     * Without this the feed had no idea, so every heart rendered empty however
+     * many the visitor had liked. Tapping one they had already liked then read
+     * as a new like in the browser while the server, seeing the existing row,
+     * deleted it — leaving the heart filled with no like behind it and the
+     * count two out until the page was reloaded.
+     */
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || posts.length === 0) {
+      return NextResponse.json(posts.map((p) => ({ ...p, liked: false })));
+    }
+
+    const { data: likes } = await supabase
+      .from("post_likes")
+      .select("post_id")
+      .eq("user_id", user.id)
+      .in("post_id", posts.map((p) => p.id));
+
+    const liked = new Set((likes ?? []).map((l) => l.post_id));
+    return NextResponse.json(posts.map((p) => ({ ...p, liked: liked.has(p.id) })));
   } catch (e) {
     return serverErrorResponse("community.posts", e);
   }

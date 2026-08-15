@@ -5,107 +5,11 @@ import { Users, TrendingUp } from "lucide-react";
 import clsx from "clsx";
 import PremiumGate from "@/components/PremiumGate";
 import { useAuth } from "@/context/AuthContext";
+import { isVoteCounts, totalVotes, votePercent } from "@/lib/vote-counts";
+import { FREE_MARKETS, PREMIUM_MARKETS, type MarketConfig } from "@/lib/vote-markets";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
 
-type VoteCounts = Record<string, Record<string, number>>;
-
-interface MarketConfig {
-  id: string;
-  label: string;
-  description: string;
-  choices: { id: string; label: string }[];
-  premium?: boolean;
-}
-
-const FREE_MARKETS: MarketConfig[] = [
-  {
-    id: "1x2",
-    label: "1X2 — Match Result",
-    description: "Who wins the match?",
-    choices: [
-      { id: "home", label: "Home Win" },
-      { id: "draw", label: "Draw" },
-      { id: "away", label: "Away Win" },
-    ],
-  },
-  {
-    id: "btts",
-    label: "Both Teams to Score",
-    description: "Will both teams get on the scoresheet?",
-    choices: [
-      { id: "yes", label: "Yes" },
-      { id: "no", label: "No" },
-    ],
-  },
-  {
-    id: "over_under",
-    label: "Over/Under 2.5 Goals",
-    description: "Total goals in the match",
-    choices: [
-      { id: "over", label: "Over 2.5" },
-      { id: "under", label: "Under 2.5" },
-    ],
-  },
-];
-
-const PREMIUM_MARKETS: MarketConfig[] = [
-  {
-    id: "double_chance",
-    label: "Double Chance",
-    description: "Two outcomes covered",
-    premium: true,
-    choices: [
-      { id: "1x", label: "1X" },
-      { id: "x2", label: "X2" },
-      { id: "12", label: "12" },
-    ],
-  },
-  {
-    id: "halftime",
-    label: "Half Time Result",
-    description: "Result at half time",
-    premium: true,
-    choices: [
-      { id: "home", label: "Home" },
-      { id: "draw", label: "Draw" },
-      { id: "away", label: "Away" },
-    ],
-  },
-  {
-    id: "correct_score",
-    label: "Correct Score",
-    description: "Predict the exact final score",
-    premium: true,
-    choices: [
-      { id: "1-0", label: "1–0" },
-      { id: "2-0", label: "2–0" },
-      { id: "2-1", label: "2–1" },
-      { id: "0-0", label: "0–0" },
-      { id: "1-1", label: "1–1" },
-      { id: "other", label: "Other" },
-    ],
-  },
-  {
-    id: "asian_handicap",
-    label: "Asian Handicap",
-    description: "Handicap market — one side given a virtual head start",
-    premium: true,
-    choices: [
-      { id: "home", label: "Home -0.5" },
-      { id: "away", label: "Away +0.5" },
-    ],
-  },
-  {
-    id: "combo",
-    label: "Combo Builder",
-    description: "Combine multiple outcomes",
-    premium: true,
-    choices: [
-      { id: "home_over", label: "Home + Over 2.5" },
-      { id: "btts_over", label: "BTTS + Over 2.5" },
-    ],
-  },
-];
+import type { VoteCounts } from "@/lib/vote-counts";
 
 interface PredictionData {
   winner: { id: number | null; name: string | null; comment: string } | null;
@@ -124,16 +28,6 @@ interface Props {
   awayTeamName: string;
 }
 
-function getTotal(counts: Record<string, number>): number {
-  return Object.values(counts).reduce((a, b) => a + b, 0);
-}
-
-function getPct(counts: Record<string, number>, key: string): number {
-  const total = getTotal(counts);
-  if (!total) return 0;
-  return Math.round(((counts[key] ?? 0) / total) * 100);
-}
-
 function MarketCard({
   market,
   voteCounts,
@@ -149,7 +43,7 @@ function MarketCard({
   homeTeamName: string;
   awayTeamName: string;
 }) {
-  const total = getTotal(voteCounts);
+  const total = totalVotes(voteCounts);
 
   const labelFor = (choiceId: string, choiceLabel: string) => {
     if (market.id === "1x2") {
@@ -174,7 +68,7 @@ function MarketCard({
 
       <div className="space-y-2">
         {market.choices.map((choice) => {
-          const pct = getPct(voteCounts, choice.id);
+          const pct = votePercent(voteCounts, choice.id);
           const isVoted = userVote === choice.id;
 
           return (
@@ -228,8 +122,8 @@ export default function MatchVotePanel({ fixtureId, prediction, homeTeamName, aw
     async function load() {
       try {
         const res = await fetch(`/api/community/votes?fixture=${fixtureId}`);
-        const data = await res.json();
-        setVotes(data ?? {});
+        const data = res.ok ? await res.json() : null;
+        setVotes(isVoteCounts(data) ? data : {});
       } catch { /* ignore */ }
 
       if (user && hasSupabaseConfig()) {
@@ -268,16 +162,37 @@ export default function MatchVotePanel({ fixtureId, prediction, homeTeamName, aw
       return next;
     });
 
-    // Persist
+    // Persist. The optimistic update above only exists to make the tap feel
+    // instant; if the write does not land it has to be taken back, or the
+    // visitor is looking at a vote the database never recorded.
+    const revert = () => {
+      setVotes((prev) => ({ ...prev, [market]: prevCounts }));
+      setUserVotes((prev) => {
+        const next = { ...prev };
+        if (prevVote) next[market] = prevVote;
+        else delete next[market];
+        return next;
+      });
+    };
+
     try {
       const res = await fetch("/api/community/votes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fixture_id: fixtureId, market, selection }),
       });
+      // fetch resolves for 401, 429 and 503 alike, so the status has to be read.
+      if (!res.ok) {
+        revert();
+        if (res.status === 401) openAuthModal("login");
+        return;
+      }
       const updated = await res.json();
-      if (!updated.error) setVotes(updated);
-    } catch { /* revert on error if needed */ }
+      if (isVoteCounts(updated)) setVotes(updated);
+      else revert();
+    } catch {
+      revert();
+    }
   }, [user, userVotes, votes, fixtureId, openAuthModal]);
 
   const homeVal = parseFloat(prediction?.percent.home ?? "0") || 0;

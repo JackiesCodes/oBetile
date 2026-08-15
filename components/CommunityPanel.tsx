@@ -20,6 +20,8 @@ interface CommunityPost {
   content: string;
   likes_count: number;
   created_at: string;
+  /** Whether the signed-in caller has liked this post. */
+  liked?: boolean;
   profiles: { username: string | null; avatar_url: string | null } | null;
   /** Present when the post is a shared prediction rather than plain text. */
   prediction_slips?: {
@@ -136,21 +138,36 @@ export default function CommunityPanel() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Reloads on sign-in and sign-out: which posts are liked is answered per
+  // caller, so the feed fetched while signed out has every heart empty.
   useEffect(() => {
     loadPosts(0, true);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   async function loadPosts(pageNum: number, reset = false) {
     setLoading(true);
     try {
       const res = await fetch(`/api/community/posts?page=${pageNum}`);
+      if (!res.ok) return;
       const data: CommunityPost[] = await res.json();
+      const list = Array.isArray(data) ? data : [];
+
       if (reset) {
-        setPosts(Array.isArray(data) ? data : []);
+        setPosts(list);
+        // The counter has to go back with the list, or Load more resumes from
+        // wherever the previous session had got to and skips everything between.
+        setPage(pageNum);
+        setLikedIds(new Set(list.filter((p) => p.liked).map((p) => p.id)));
       } else {
-        setPosts((prev) => [...prev, ...(Array.isArray(data) ? data : [])]);
+        setPosts((prev) => [...prev, ...list]);
+        setLikedIds((prev) => {
+          const next = new Set(prev);
+          for (const p of list) if (p.liked) next.add(p.id);
+          return next;
+        });
       }
-      setHasMore(Array.isArray(data) && data.length === 20);
+      setHasMore(list.length === 20);
     } catch {
       // silently fail
     } finally {
@@ -219,10 +236,9 @@ export default function CommunityPanel() {
       )
     );
 
-    try {
-      await fetch(`/api/community/posts/${postId}/like`, { method: "POST" });
-    } catch {
-      // Revert on error
+    // fetch only rejects on a network failure, so an unauthorised, rate-limited
+    // or unconfigured reply used to leave the optimistic like standing forever.
+    const revert = () => {
       setLikedIds((prev) => {
         const next = new Set(prev);
         wasLiked ? next.add(postId) : next.delete(postId);
@@ -235,6 +251,22 @@ export default function CommunityPanel() {
             : p
         )
       );
+    };
+
+    try {
+      const res = await fetch(`/api/community/posts/${postId}/like`, { method: "POST" });
+      if (!res.ok) {
+        revert();
+        if (res.status === 401) openAuthModal("login");
+        return;
+      }
+
+      // The server says what actually happened; the guess above only had to
+      // make the tap feel instant.
+      const { liked } = (await res.json()) as { liked: boolean };
+      if (liked === wasLiked) revert();
+    } catch {
+      revert();
     }
   }
 
