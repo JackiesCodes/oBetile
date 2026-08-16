@@ -37,6 +37,15 @@ function readKey(): string {
   return key;
 }
 
+/**
+ * How long any single upstream call may take.
+ *
+ * A network fetch has no timeout by default, so a stalled connection would sit
+ * open until the platform killed the whole invocation. Ten seconds is far
+ * beyond a healthy response and far inside the function ceiling.
+ */
+const UPSTREAM_TIMEOUT_MS = 10_000;
+
 const num = (v: string | null) => (v === null || v === "" ? null : Number(v));
 
 /**
@@ -84,9 +93,31 @@ export async function apiFetchRaw<T>(
   // Tag the entry so a poisoned response can be dropped again below.
   const tag = `apifootball:${path}:${url.searchParams.toString()}`;
 
+  /*
+   * Every upstream call is bounded.
+   *
+   * Without this a hung connection holds a serverless invocation until the
+   * platform kills it, and the caller waits the whole time for a response that
+   * is never coming. It matters most where a route fans out: the odds sweep
+   * makes dozens of calls in one request, so a single stalled page could spend
+   * the entire function budget on its own and take the other seventy with it.
+   *
+   * Ten seconds is well beyond a healthy response and well inside the function
+   * ceiling, so a slow call fails as a normal error the caller can handle
+   * rather than as a timeout nobody sees.
+   */
   const res = await fetch(url.toString(), {
     headers: { "x-apisports-key": readKey() },
     next: { revalidate, tags: [tag] },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  }).catch((e: unknown) => {
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    throw new ApiFootballError(
+      timedOut
+        ? `API-Football did not respond within ${UPSTREAM_TIMEOUT_MS}ms (${path})`
+        : `API-Football unreachable (${path}): ${e instanceof Error ? e.message : String(e)}`,
+      "http"
+    );
   });
 
   if (!res.ok) {
