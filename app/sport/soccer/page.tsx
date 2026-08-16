@@ -6,6 +6,7 @@ import SportsTabBar from "@/components/SportsTabBar";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
+import { isListable } from "@/lib/match-status";
 import { getDateParams } from "@/lib/match-dates";
 import { withOdds, type OddsMap } from "@/lib/odds";
 import { useLiveData } from "@/lib/use-live-data";
@@ -71,10 +72,11 @@ async function fillMissingOdds(
   }
 }
 
+// Finished is deliberately absent: those fixtures are filtered out before the
+// chip is consulted, so an entry here would be a filter that can never match.
 const STATUS_MAP: Record<string, Match["status"]> = {
   Live: "live",
   Upcoming: "upcoming",
-  Finished: "finished",
 };
 
 function dedupe(matches: Match[]): Match[] {
@@ -138,9 +140,12 @@ export default function SoccerPage() {
     [activeDate]
   );
 
-  const liveCount = matches.filter((m) => m.status === "live").length;
+  const listable = matches.filter((m) => isListable(m.status));
+  const liveCount = listable.filter((m) => m.status === "live").length;
 
   const filtered = matches.filter((m) => {
+    // See the homepage: only what can still be predicted is listed.
+    if (!isListable(m.status)) return false;
     if (activeStatus !== "All") return m.status === STATUS_MAP[activeStatus];
     if (activeTab === "Live") return m.status === "live";
     if (activeTab === "Upcoming") return m.status === "upcoming";
@@ -163,7 +168,10 @@ export default function SoccerPage() {
         <div>
           <h1 className="text-white font-bold text-lg leading-tight">Soccer</h1>
           <p className="text-gray-400 text-xs">
-            {liveCount > 0 ? `${liveCount} live · ` : ""}{matches.length} match{matches.length !== 1 ? "es" : ""} today
+            {/* The filtered count, not the fetched one: finished, cancelled and
+                postponed fixtures are no longer listed, so counting them here
+                would promise rows the list does not contain. */}
+            {liveCount > 0 ? `${liveCount} live · ` : ""}{listable.length} match{listable.length !== 1 ? "es" : ""} today
           </p>
         </div>
       </div>

@@ -4,7 +4,9 @@ import clsx from "clsx";
 
 const tabs = ["Live", "Highlights", "Upcoming", "Season Picks", "Community"];
 const DATES = ["Today", "Tomorrow", "This Week"];
-const STATUSES = ["All", "Live", "Upcoming", "Finished"];
+// No Finished chip: finished, cancelled and postponed fixtures are not loaded
+// into the feed at all, so the chip would only ever open an empty list.
+const STATUSES = ["All", "Live", "Upcoming"];
 
 interface Props {
   activeTab: string;

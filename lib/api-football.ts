@@ -1,4 +1,5 @@
 import type { APIFixture, Match } from "@/types";
+import { classifyStatus } from "@/lib/match-status";
 
 const BASE = "https://v3.football.api-sports.io";
 
@@ -349,17 +350,12 @@ export const MAJOR_LEAGUES: LeagueMeta[] = [
   { id: TOP_LEAGUES.saudiProLeague, name: "Saudi Pro League", country: "Saudi Arabia", calendar: "split-year" },
 ];
 
-// Normalise an API-Football fixture response into the local Match type
-const LIVE_STATUSES = new Set(["1H", "2H", "ET", "P", "HT", "BT"]);
-const FINISHED_STATUSES = new Set(["FT", "AET", "PEN", "AWD", "WO"]);
-
+// Normalise an API-Football fixture response into the local Match type.
+// The status sets live in lib/match-status, shared with the feed filter so a
+// state cannot be classified one way and listed another.
 export function normalizeFixture(f: APIFixture): Match {
   const { short, elapsed } = f.fixture.status;
-  const status: Match["status"] = LIVE_STATUSES.has(short)
-    ? "live"
-    : FINISHED_STATUSES.has(short)
-    ? "finished"
-    : "upcoming";
+  const status = classifyStatus(short);
 
   const score =
     f.goals.home !== null && f.goals.away !== null

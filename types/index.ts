@@ -1,3 +1,5 @@
+import type { MatchState } from "@/lib/match-status";
+
 export interface Match {
   id: string;
   sport: string;
@@ -8,7 +10,7 @@ export interface Match {
   away: string;
   score: string | null;
   minute?: string;
-  status: "live" | "upcoming" | "finished";
+  status: MatchState;
   /** Display-only, in the renderer's locale. */
   time?: string;
   /** Kick-off as an ISO instant. Unlike `status` this does not go stale in a cache. */

@@ -9,6 +9,7 @@ import CommunityPanel from "@/components/CommunityPanel";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
 import { normalizeFixture } from "@/lib/api-football";
+import { isListable } from "@/lib/match-status";
 import { getDateParams } from "@/lib/match-dates";
 import { withOdds, type OddsMap } from "@/lib/odds";
 import { useLiveData } from "@/lib/use-live-data";
@@ -86,10 +87,11 @@ async function fillMissingOdds(
   }
 }
 
+// Finished is deliberately absent: those fixtures are filtered out before the
+// chip is consulted, so an entry here would be a filter that can never match.
 const STATUS_MAP: Record<string, Match["status"]> = {
   Live: "live",
   Upcoming: "upcoming",
-  Finished: "finished",
 };
 
 export default function HomePage() {
@@ -174,6 +176,11 @@ export default function HomePage() {
   );
 
   const filtered = matches.filter((m) => {
+    // Nothing that cannot still be predicted. A finished match is a result
+    // rather than a fixture, and a cancelled or postponed one is not happening
+    // on this date at all — listing any of them fills the feed with rows whose
+    // only purpose is to be refused.
+    if (!isListable(m.status)) return false;
     // Status chip overrides when explicitly set
     if (activeStatus !== "All") {
       return m.status === STATUS_MAP[activeStatus];
