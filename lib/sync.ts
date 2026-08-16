@@ -261,8 +261,22 @@ export async function syncTeamStatistics(leagueIds?: number[]): Promise<SyncOutc
         })
         .filter((r) => typeof r.team_id === "number");
 
-      const failed = stats.filter((s) => !s.ok).length;
-      if (failed > 0) problems.push(`league ${leagueId}: ${failed} team(s) failed`);
+      // settle() carries why each team failed; counting them threw that away,
+      // which is precisely the hole settle() was written to close. A first live
+      // run returned "3 team(s) failed" and left nothing to act on. Reasons are
+      // grouped rather than listed per team, because twenty teams hitting one
+      // rate limit is one fact, not twenty.
+      const failures = stats.flatMap((s, i) => (s.ok ? [] : [{ teamId: teamIds[i], reason: s.reason }]));
+      if (failures.length > 0) {
+        const byReason = new Map<string, number[]>();
+        for (const f of failures) {
+          byReason.set(f.reason, [...(byReason.get(f.reason) ?? []), f.teamId]);
+        }
+        const detail = [...byReason]
+          .map(([reason, ids]) => `${reason} [teams ${ids.join(",")}]`)
+          .join("; ");
+        problems.push(`league ${leagueId}: ${failures.length} of ${teamIds.length} team(s) failed — ${detail}`);
+      }
 
       if (rows.length > 0) {
         const { error } = await supabase
