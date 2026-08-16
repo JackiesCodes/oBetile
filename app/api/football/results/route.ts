@@ -3,6 +3,7 @@ import { apiFetch } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import type { APIFixture } from "@/types";
 import { outcomeOf, FINISHED_STATUSES, LIVE_STATUSES, type Outcome } from "@/lib/fixture-outcome";
+import { createPublicClient, hasSupabaseConfig } from "@/lib/supabase/server";
 
 /**
  * Outcomes for a specific set of fixtures.
@@ -33,6 +34,45 @@ export interface FixtureResult {
   kickoff: string;
 }
 
+/**
+ * Settled fixtures already stored locally.
+ *
+ * Reads with no session — these rows are public sporting record — and treats
+ * any failure as simply having nothing stored, so a database problem degrades
+ * to the behaviour that existed before this table did rather than breaking
+ * settlement outright.
+ */
+async function readStoredResults(ids: number[]): Promise<Record<string, FixtureResult>> {
+  if (!hasSupabaseConfig()) return {};
+  try {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("fixture_results")
+      .select("fixture_id,status,home_team,away_team,home_goals,away_goals,outcome,kickoff")
+      .in("fixture_id", ids)
+      .eq("finished", true);
+
+    if (error || !data) return {};
+
+    const out: Record<string, FixtureResult> = {};
+    for (const row of data) {
+      out[String(row.fixture_id)] = {
+        status: row.status,
+        finished: true,
+        live: false,
+        home: row.home_team,
+        away: row.away_team,
+        goals: { home: row.home_goals, away: row.away_goals },
+        outcome: row.outcome as Outcome,
+        kickoff: row.kickoff,
+      };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export async function GET(req: NextRequest) {
   const raw = new URL(req.url).searchParams.get("ids");
   if (!raw) return NextResponse.json({});
@@ -51,10 +91,35 @@ export async function GET(req: NextRequest) {
   try {
     const result: Record<string, FixtureResult> = {};
 
+    /*
+     * The local copy answers first.
+     *
+     * A finished match never changes, so once it is stored there is nothing to
+     * re-ask. That saves requests, but the reason it matters is durability: a
+     * saved prediction is scored against a result, so the day the subscription
+     * lapses every slip would become unsettleable if this were the only source.
+     * Reading stored results first is what keeps the record intact.
+     *
+     * Only settled fixtures are served this way — anything still to play, or in
+     * play, falls through to the live call below.
+     */
+    const stored = await readStoredResults(ids);
+    for (const [id, row] of Object.entries(stored)) result[id] = row;
+
+    const missing = ids.filter((id) => !(String(id) in result));
+    if (missing.length === 0) {
+      return NextResponse.json(result, {
+        headers: {
+          "Cache-Control": `s-maxage=${RESULTS_TTL}, stale-while-revalidate=60`,
+          "x-results-source": "database",
+        },
+      });
+    }
+
     // Sequential batches — twenty ids per call, and never several calls at once,
     // for the same burst reasons the odds route fetches its pages one at a time.
-    for (let i = 0; i < ids.length; i += IDS_PER_REQUEST) {
-      const batch = ids.slice(i, i + IDS_PER_REQUEST);
+    for (let i = 0; i < missing.length; i += IDS_PER_REQUEST) {
+      const batch = missing.slice(i, i + IDS_PER_REQUEST);
       const fixtures = await apiFetch<APIFixture[]>(
         "/fixtures",
         { ids: batch.join("-") },
@@ -77,7 +142,12 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(result, {
-      headers: { "Cache-Control": `s-maxage=${RESULTS_TTL}, stale-while-revalidate=60` },
+      headers: {
+        "Cache-Control": `s-maxage=${RESULTS_TTL}, stale-while-revalidate=60`,
+        // Which source answered, so a run that is quietly bypassing the local
+        // copy is visible without guessing.
+        "x-results-source": Object.keys(stored).length > 0 ? "mixed" : "upstream",
+      },
     });
   } catch (e) {
     return apiErrorResponse(e);
