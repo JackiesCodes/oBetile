@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import MatchHeader from "@/components/match-detail/MatchHeader";
 import MatchSummary from "@/components/match-detail/MatchSummary";
 import MatchLineups from "@/components/match-detail/MatchLineups";
+import MatchPlayerRatings from "@/components/match-detail/MatchPlayerRatings";
 import MatchTeamNews from "@/components/match-detail/MatchTeamNews";
 import MatchStats from "@/components/match-detail/MatchStats";
 import MatchH2H from "@/components/match-detail/MatchH2H";
@@ -14,12 +15,13 @@ import { ChevronLeft } from "lucide-react";
 import clsx from "clsx";
 import { useMatchDetail } from "@/context/MatchDetailContext";
 
-type MobileTab = "predictions" | "summary" | "lineups" | "statistics" | "h2h" | "standings";
+type MobileTab = "predictions" | "summary" | "lineups" | "players" | "statistics" | "h2h" | "standings";
 
 const MOBILE_TABS: { id: MobileTab; label: string }[] = [
   { id: "predictions", label: "Predictions" },
   { id: "summary", label: "Summary" },
   { id: "lineups", label: "Lineups" },
+  { id: "players", label: "Players" },
   { id: "statistics", label: "Statistics" },
   { id: "h2h", label: "H2H" },
   { id: "standings", label: "Standings" },
@@ -43,6 +45,7 @@ export default function MatchDetailPage() {
   const [prediction, setPrediction] = useState<any>(null);
   const [standings, setStandings] = useState<any[]>([]);
   const [injuries, setInjuries] = useState<any[]>([]);
+  const [playerRatings, setPlayerRatings] = useState<any[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -52,7 +55,7 @@ export default function MatchDetailPage() {
       setError(null);
 
       try {
-        const [fixtureRes, eventsRes, lineupsRes, statsRes, predRes, injuriesRes] =
+        const [fixtureRes, eventsRes, lineupsRes, statsRes, predRes, injuriesRes, playersRes] =
           await Promise.all([
             fetch(`/api/football/fixture/${id}`).then((r) => r.json()),
             fetch(`/api/football/events/${id}`).then((r) => r.json()),
@@ -63,6 +66,11 @@ export default function MatchDetailPage() {
             // the rest of the page down with it.
             fetch(`/api/football/injuries/${id}`)
               .then((r) => r.json())
+              .catch(() => []),
+            // Same tolerance as injuries: only exists once a match is under
+            // way, and plenty of competitions never publish it.
+            fetch(`/api/football/players/${id}`)
+              .then((r) => (r.ok ? r.json() : []))
               .catch(() => []),
           ]);
 
@@ -81,6 +89,7 @@ export default function MatchDetailPage() {
         setPrediction(pred);
         const inj = Array.isArray(injuriesRes) ? injuriesRes : [];
         setInjuries(inj);
+        setPlayerRatings(Array.isArray(playersRes) ? playersRes : []);
 
         const homeId = fix.teams.home.id;
         const awayId = fix.teams.away.id;
@@ -227,6 +236,17 @@ export default function MatchDetailPage() {
             homeTeamName={fixture.teams.home.name}
             awayTeamName={fixture.teams.away.name}
           />
+          {/* Only once there is something to show. Above xl the centre column
+              has no tabs, so an empty state here would be permanent furniture
+              on every upcoming fixture. */}
+          {playerRatings.length > 0 && (
+            <div className="border-t border-brand-dark-5">
+              <h3 className="px-4 pt-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Player ratings
+              </h3>
+              <MatchPlayerRatings teams={playerRatings} fixtureStatus={fixtureStatus} />
+            </div>
+          )}
         </div>
 
         {/* Mobile: show whichever tab is active */}
@@ -267,6 +287,9 @@ export default function MatchDetailPage() {
               </div>
               <MatchLineups lineups={lineups} fixtureStatus={fixtureStatus} />
             </>
+          )}
+          {mobileTab === "players" && (
+            <MatchPlayerRatings teams={playerRatings} fixtureStatus={fixtureStatus} />
           )}
           {mobileTab === "statistics" && (
             <MatchStats stats={stats} fixtureStatus={fixtureStatus} />

@@ -42,6 +42,9 @@ function usageCount(componentName: string, ownFile: string): number {
 describe("components are actually rendered", () => {
   const mustBeMounted: [string, string][] = [
     ["OddsButton", "components/OddsButton.tsx"],
+    // The players route worked for months with nothing rendering it. Mounting
+    // is the whole point of the endpoint, so it is guarded like the rest.
+    ["MatchPlayerRatings", "components/match-detail/MatchPlayerRatings.tsx"],
     ["PredictionSlip", "components/PredictionSlip.tsx"],
     ["MatchRow", "components/MatchRow.tsx"],
     ["LeagueSection", "components/LeagueSection.tsx"],
