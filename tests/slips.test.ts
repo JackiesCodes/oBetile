@@ -11,6 +11,7 @@ import {
   outcomeFor,
   slipOutcome,
   summariseSlips,
+  voidedResult,
   tally,
   withSelection,
   withoutFixture,
@@ -250,5 +251,79 @@ describe("summariseSlips", () => {
 
   it("kills a slip on the first wrong selection, however many are left", () => {
     expect(summariseSlips([slip("wrong", null, null)]).alive).toBe(0);
+  });
+});
+
+/**
+ * Found in production: a pick on Junior v Deportivo Pereira sat pending four
+ * days after the match was postponed, and would have stayed that way forever —
+ * settlement only ever acted on a fixture that finished with an outcome, and a
+ * match nobody plays has no outcome to wait for.
+ */
+describe("voidedResult", () => {
+  const now = new Date("2026-08-16T12:00:00Z");
+  const daysAgo = (n: number) =>
+    new Date(now.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
+
+  it("voids a cancelled fixture immediately", () => {
+    expect(voidedResult({ status: "CANC", kickoff: daysAgo(0) }, now)).toBe("push");
+  });
+
+  it("voids an abandoned fixture immediately", () => {
+    // Abandoned mid-match is still a match with no result to settle against.
+    expect(voidedResult({ status: "ABD", kickoff: daysAgo(0) }, now)).toBe("push");
+  });
+
+  it("resolves the pick that was actually stuck", () => {
+    // The real row: postponed, scheduled 2026-08-12, still unplayed.
+    expect(voidedResult({ status: "PST", kickoff: "2026-08-12T01:05:00+00:00" }, now)).toBe("push");
+  });
+
+  it("gives a fresh postponement time to be rearranged", () => {
+    // A postponement is usually rescheduled under the same id, so voiding it
+    // the same day would throw away a selection that is about to be playable.
+    expect(voidedResult({ status: "PST", kickoff: daysAgo(1) }, now)).toBeNull();
+  });
+
+  it("leaves a rescheduled fixture alone once its date moves forward", () => {
+    // The self-correcting case: status returns to not-started and the kick-off
+    // is in the future again.
+    expect(voidedResult({ status: "NS", kickoff: "2026-08-20T18:00:00Z" }, now)).toBeNull();
+  });
+
+  it("never voids a match that was played", () => {
+    for (const status of ["FT", "AET", "PEN", "1H", "HT", "NS"]) {
+      expect(voidedResult({ status, kickoff: daysAgo(10) }, now), status).toBeNull();
+    }
+  });
+
+  it("will not void a postponement with no kick-off to measure against", () => {
+    // Guessing would be worse than waiting: without a date there is no way to
+    // tell a fresh postponement from an abandoned one.
+    expect(voidedResult({ status: "PST", kickoff: null }, now)).toBeNull();
+    expect(voidedResult({ status: "PST", kickoff: "not a date" }, now)).toBeNull();
+  });
+});
+
+describe("a voided selection neither breaks nor flatters a slip", () => {
+  const pick = (result: SavedPick["result"]): SavedPick => ({ ...sel("1"), result });
+
+  it("is excluded from correct, wrong and pending alike", () => {
+    const t = tally([pick("correct"), pick("push"), pick("wrong")]);
+    expect(t).toMatchObject({ correct: 1, wrong: 1, pending: 0, settled: 2, total: 3 });
+  });
+
+  it("lets a slip still land when the rest came in", () => {
+    // The whole point: a match nobody played must not cost someone their slip.
+    expect(slipOutcome([pick("correct"), pick("push")])).toBe("won");
+  });
+
+  it("does not rescue a slip that already lost", () => {
+    expect(slipOutcome([pick("wrong"), pick("push")])).toBe("lost");
+  });
+
+  it("does not call an all-void slip a win", () => {
+    // Nothing was predicted correctly, so there is nothing to claim.
+    expect(slipOutcome([pick("push"), pick("push")])).toBe("pending");
   });
 });

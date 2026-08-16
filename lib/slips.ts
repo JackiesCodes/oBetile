@@ -9,6 +9,8 @@
  * Kept free of React and Supabase so the maths can be tested directly.
  */
 
+import { classifyStatus } from "@/lib/match-status";
+
 export type Outcome = "home" | "draw" | "away";
 export type PickResult = "correct" | "wrong" | "push";
 
@@ -133,6 +135,49 @@ export function tally(picks: SavedPick[]) {
     else pending++;
   }
   return { correct, wrong, pending, settled: correct + wrong, total: picks.length };
+}
+
+/**
+ * How long a postponed fixture is given before its selection is voided.
+ *
+ * A postponement is usually rescheduled under the same fixture id, which sets
+ * the date forward and the status back to not-started — so a rule based on the
+ * kick-off having passed corrects itself as soon as that happens. This window
+ * only catches the other case: postponed, never rearranged, and therefore never
+ * going to settle under this id.
+ */
+export const VOID_AFTER_POSTPONED_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a selection should be voided rather than left waiting.
+ *
+ * Found in production: a pick on Junior v Deportivo Pereira sat pending four
+ * days after a postponement, and would have sat there permanently, because
+ * settlement only ever acted on a fixture that finished with an outcome. A
+ * match that is never played has no outcome to wait for.
+ *
+ * Voided selections are recorded as a push — the same treatment a void bet
+ * gets — which tally() excludes from correct, wrong and pending alike. That
+ * matters: a match nobody played must neither break a slip nor flatter it.
+ *
+ * Cancelled and abandoned are immediate; those are final. Postponed waits out
+ * the window above, in case it is simply rearranged.
+ */
+export function voidedResult(
+  fixture: { status?: string | null; kickoff?: string | null },
+  now: Date = new Date()
+): "push" | null {
+  const state = classifyStatus(fixture.status);
+  if (state === "cancelled") return "push";
+
+  if (state === "postponed") {
+    if (!fixture.kickoff) return null;
+    const scheduled = Date.parse(fixture.kickoff);
+    if (!Number.isFinite(scheduled)) return null;
+    if (now.getTime() - scheduled > VOID_AFTER_POSTPONED_MS) return "push";
+  }
+
+  return null;
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   cleanNote,
   cleanTitle,
   isPickable,
+  voidedResult,
   withSelection,
   withoutFixture,
   type Outcome,
@@ -216,10 +217,24 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
         picks: slip.picks.map((p) => {
           if (p.result !== null) return p;
           const r = results[p.fixtureId];
-          if (!r?.finished || !r.outcome) return p;
-          const result: SavedPick["result"] = r.outcome === p.pick ? "correct" : "wrong";
-          settled.push({ fixtureId: p.fixtureId, slipId: slip.id, result });
-          return { ...p, result };
+          if (!r) return p;
+
+          // A played match scores normally.
+          if (r.finished && r.outcome) {
+            const result: SavedPick["result"] = r.outcome === p.pick ? "correct" : "wrong";
+            settled.push({ fixtureId: p.fixtureId, slipId: slip.id, result });
+            return { ...p, result };
+          }
+
+          // A match that will never be played has no outcome to wait for, so
+          // the selection is voided rather than left pending forever.
+          const voided = voidedResult({ status: r.status, kickoff: r.kickoff });
+          if (voided) {
+            settled.push({ fixtureId: p.fixtureId, slipId: slip.id, result: voided });
+            return { ...p, result: voided };
+          }
+
+          return p;
         }),
       }));
 
