@@ -36,6 +36,9 @@ export default function RightPanel() {
 
 function RightPanelDefault() {
   const [activeLeagues, setActiveLeagues] = useState<ActiveLeague[]>([]);
+  // Starts true so the first paint shows placeholders, not the "nothing in
+  // season" empty state — that message is only true once the fetch has landed.
+  const [leaguesLoading, setLeaguesLoading] = useState(true);
   const [standings, setStandings] = useState<Record<number, Standing[]>>({});
   const [scorers, setScorers] = useState<TopScorer[]>([]);
   const [activeScorersLeague, setActiveScorersLeague] = useState<number | null>(null);
@@ -56,7 +59,8 @@ function RightPanelDefault() {
         setActiveLeagues(data);
         setActiveScorersLeague((prev) => prev ?? data[0]?.id ?? null);
       })
-      .catch(() => { /* ignore */ });
+      .catch(() => { /* ignore */ })
+      .finally(() => setLeaguesLoading(false));
   }, []);
 
   useEffect(() => {
@@ -93,6 +97,7 @@ function RightPanelDefault() {
         collapsed={!newsFeedOpen}
         onToggleCollapse={() => setNewsFeedOpen((p) => !p)}
         activeLeagues={activeLeagues}
+        leaguesLoading={leaguesLoading}
       />
 
       {/* ── Top Scorers ──────────────────────────────────────── */}
@@ -115,6 +120,7 @@ function RightPanelDefault() {
         {scorersOpen && (
           <>
             {/* League switcher — only leagues with a season currently in progress */}
+            {leaguesLoading && <SkeletonPills />}
             <div className="flex gap-1 px-3 pb-2 overflow-x-auto scrollbar-hide">
               {activeLeagues.map((l) => (
                 <button
@@ -133,25 +139,13 @@ function RightPanelDefault() {
             </div>
 
             <div className="px-2 pb-3 space-y-0.5">
-              {activeLeagues.length === 0 && (
+              {!leaguesLoading && activeLeagues.length === 0 && (
                 <p className="text-center text-gray-500 text-[11px] py-4 px-3">
                   No leagues currently in season
                 </p>
               )}
-              {activeLeagues.length > 0 && scorers.length === 0 && (
-                <div className="space-y-1.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="animate-pulse flex items-center gap-2.5 px-2 py-1.5">
-                      <div className="w-4 h-4 bg-brand-dark-4 rounded shrink-0" />
-                      <div className="w-7 h-7 bg-brand-dark-4 rounded-full shrink-0" />
-                      <div className="flex-1 space-y-1">
-                        <div className="h-3 bg-brand-dark-4 rounded w-3/4" />
-                        <div className="h-2.5 bg-brand-dark-4 rounded w-1/2" />
-                      </div>
-                      <div className="w-5 h-4 bg-brand-dark-4 rounded shrink-0" />
-                    </div>
-                  ))}
-                </div>
+              {(leaguesLoading || (activeLeagues.length > 0 && scorers.length === 0)) && (
+                <SkeletonScorerRows />
               )}
               {scorers.map((s, i) => (
                 <div
@@ -194,7 +188,10 @@ function RightPanelDefault() {
           <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Standings</span>
         </div>
 
-        {activeLeagues.length === 0 && (
+        {leaguesLoading &&
+          Array.from({ length: 2 }).map((_, i) => <SkeletonStandingsGroup key={i} />)}
+
+        {!leaguesLoading && activeLeagues.length === 0 && (
           <p className="text-center text-gray-500 text-[11px] py-4 px-3">
             No leagues currently in season
           </p>
@@ -291,5 +288,58 @@ function RightPanelDefault() {
         })}
       </section>
     </aside>
+  );
+}
+
+/* ── Loading placeholders ───────────────────────────────────── */
+
+function SkeletonPills() {
+  return (
+    <div className="flex gap-1 px-3 pb-2">
+      {[16, 12, 20].map((w, i) => (
+        <div
+          key={i}
+          className="animate-pulse h-[22px] bg-brand-dark-4 rounded-full shrink-0"
+          style={{ width: `${w * 4}px` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SkeletonScorerRows() {
+  return (
+    <div className="space-y-1.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="animate-pulse flex items-center gap-2.5 px-2 py-1.5">
+          <div className="w-4 h-4 bg-brand-dark-4 rounded shrink-0" />
+          <div className="w-7 h-7 bg-brand-dark-4 rounded-full shrink-0" />
+          <div className="flex-1 space-y-1">
+            <div className="h-3 bg-brand-dark-4 rounded w-3/4" />
+            <div className="h-2.5 bg-brand-dark-4 rounded w-1/2" />
+          </div>
+          <div className="w-5 h-4 bg-brand-dark-4 rounded shrink-0" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonStandingsGroup() {
+  return (
+    <div className="border-b border-brand-dark-5">
+      <div className="px-3 py-2.5">
+        <div className="animate-pulse h-3 w-28 bg-brand-dark-4 rounded" />
+      </div>
+      <div className="px-3 pb-2.5 space-y-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="animate-pulse flex items-center gap-1.5">
+            <div className="w-4 h-4 bg-brand-dark-4 rounded-full shrink-0" />
+            <div className="h-2.5 bg-brand-dark-4 rounded flex-1" />
+            <div className="h-2.5 w-7 bg-brand-dark-4 rounded shrink-0" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

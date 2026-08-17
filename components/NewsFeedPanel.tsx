@@ -10,11 +10,18 @@ interface Props {
   collapsed: boolean;
   onToggleCollapse: () => void;
   activeLeagues: ActiveLeague[];
+  /** True while the parent is still discovering which leagues are in season. */
+  leaguesLoading?: boolean;
 }
 
 const ALL = "all";
 
-export default function NewsFeedPanel({ collapsed, onToggleCollapse, activeLeagues }: Props) {
+export default function NewsFeedPanel({
+  collapsed,
+  onToggleCollapse,
+  activeLeagues,
+  leaguesLoading = false,
+}: Props) {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [activeLeague, setActiveLeague] = useState<number | typeof ALL>(ALL);
   const [loading, setLoading] = useState(false);
@@ -114,17 +121,17 @@ export default function NewsFeedPanel({ collapsed, onToggleCollapse, activeLeagu
 
           {/* Items list */}
           <div className="pb-3 space-y-0.5">
-            {activeLeagues.length === 0 && (
+            {!leaguesLoading && activeLeagues.length === 0 && (
               <p className="text-center text-gray-500 text-[11px] py-4 px-3">
                 No leagues currently in season
               </p>
             )}
-            {activeLeagues.length > 0 && loading && (
+            {(leaguesLoading || (activeLeagues.length > 0 && loading)) && (
               <div className="flex items-center justify-center py-4">
                 <div className="w-4 h-4 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
               </div>
             )}
-            {activeLeagues.length > 0 && !loading && items.length === 0 && (
+            {!leaguesLoading && activeLeagues.length > 0 && !loading && items.length === 0 && (
               <p className="text-center text-gray-500 text-[11px] py-4 px-3">
                 No news available right now
               </p>
