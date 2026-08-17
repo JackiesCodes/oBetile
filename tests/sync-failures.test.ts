@@ -137,6 +137,36 @@ describe("a clean league stays quiet", () => {
   });
 });
 
+describe("running out of time", () => {
+  beforeEach(() => {
+    apiFetch.mockImplementation(async (endpoint: string, params: Record<string, string>) => {
+      if (endpoint === "/standings") return standings([1, 2]);
+      return teamStats(Number(params.team));
+    });
+  });
+
+  it("stops cleanly and names the leagues it never reached", async () => {
+    // Paced to the upstream's rate, a full pass is close to a minute of calls
+    // against a function limit of the same order — so this is reachable, and a
+    // run that hit it silently would look identical to a complete one.
+    const out = await syncTeamStatistics([39, 140, 135], Date.now() - 1);
+    expect(out.detail).toContain("not reached: 39,140,135");
+    expect(out.ok).toBe(false);
+    expect(out.records).toBe(0);
+  });
+
+  it("keeps what it managed before the deadline", async () => {
+    const out = await syncTeamStatistics([39, 140], Date.now() + 250);
+    expect(out.records).toBeGreaterThan(0);
+  });
+
+  it("says nothing about time when it finishes inside the budget", async () => {
+    const out = await syncTeamStatistics([39], Date.now() + 60_000);
+    expect(out.ok).toBe(true);
+    expect(out.detail).not.toMatch(/out of time/);
+  });
+});
+
 describe("one league failing does not abandon the others", () => {
   it("carries on and reports both", async () => {
     apiFetch.mockImplementation(async (endpoint: string, params: Record<string, string>) => {

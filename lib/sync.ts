@@ -1,7 +1,7 @@
 import { apiFetch, MAJOR_LEAGUES, resolveSeason } from "@/lib/api-football";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FINISHED_STATUSES, outcomeOf } from "@/lib/fixture-outcome";
-import { inBatches, settle } from "@/lib/batch";
+import { inBatches, rateLimiter, settle } from "@/lib/batch";
 import {
   currentStreak,
   formIndex,
@@ -32,8 +32,23 @@ import type { APIFixture } from "@/types";
  * sweeping the world.
  */
 
-/** How many upstream calls may be in flight. Far below the burst allowance. */
+/** How many upstream calls may be in flight. */
 const SYNC_CONCURRENCY = 3;
+
+/**
+ * Calls per second, against a documented ceiling of 300 a minute (5/s).
+ *
+ * Deliberately under the ceiling: the allowance is shared with every page the
+ * site serves, so a sweep that spends all five would reject a visitor's request
+ * rather than its own.
+ */
+const SYNC_RATE_PER_SECOND = 4;
+
+/**
+ * One limiter for the whole module, so the two sweeps in a single invocation
+ * queue behind each other instead of each pacing itself to the full rate.
+ */
+const limiter = rateLimiter(SYNC_RATE_PER_SECOND);
 
 export interface SyncOutcome {
   job: string;
@@ -68,7 +83,8 @@ export async function syncFixtureResults(days = 2): Promise<SyncOutcome> {
         fixtures: await apiFetch<APIFixture[]>("/fixtures", { date }, 300),
       }))
     ),
-    SYNC_CONCURRENCY
+    SYNC_CONCURRENCY,
+    limiter
   );
 
   for (const r of results) {
@@ -176,20 +192,44 @@ function toRecord(s: APITeamStatistics): TeamRecord {
  * win rate and zero would read as "never wins".
  *
  * Cost is one standings call per league to learn who is in it, then one
- * statistics call per team — roughly twenty per competition. Leagues are
- * therefore swept a few at a time rather than all thirteen at once.
+ * statistics call per team — roughly twenty per competition, so about 235 calls
+ * for all thirteen. Paced to the subscription's rate that is close to a minute
+ * of wall clock, against a function limit of the same order, which is why this
+ * takes a deadline and stops cleanly instead of being killed mid-league.
  */
-export async function syncTeamStatistics(leagueIds?: number[]): Promise<SyncOutcome> {
+export async function syncTeamStatistics(
+  leagueIds?: number[],
+  deadline?: number
+): Promise<SyncOutcome> {
   const supabase = createAdminClient();
-  const leagues = leagueIds?.length ? leagueIds : MAJOR_LEAGUES.map((l) => l.id);
+  const asked = leagueIds?.length ? leagueIds : null;
+  const all = asked ?? MAJOR_LEAGUES.map((l) => l.id);
+
+  // Rotate the starting point daily. Whatever the deadline cuts off is the tail
+  // of the list, and a fixed order would mean the same competitions are never
+  // swept — a permanent gap rather than a slow one. Only the standing sweep is
+  // rotated: an explicit ?league= list is a request for those, in that order.
+  const offset = asked ? 0 : Math.floor(Date.now() / 86_400_000) % all.length;
+  const leagues = offset ? [...all.slice(offset), ...all.slice(0, offset)] : all;
 
   let written = 0;
   const problems: string[] = [];
+  const skipped: number[] = [];
 
-  for (const leagueId of leagues) {
+  for (const [index, leagueId] of leagues.entries()) {
+    // Checked per league rather than per call: abandoning a competition halfway
+    // leaves it counted as swept while holding a partial table.
+    if (deadline !== undefined && Date.now() >= deadline) {
+      skipped.push(...leagues.slice(index));
+      break;
+    }
     try {
       const season = await resolveSeason(leagueId);
 
+      // Gated like the team calls below it: thirteen standings requests issued
+      // back to back is a small burst, but the limiter is only a limit if every
+      // call in the sweep goes through it.
+      await limiter();
       const standings = await apiFetch<APIStandingsEntry[]>(
         "/standings",
         { league: String(leagueId), season },
@@ -216,7 +256,8 @@ export async function syncTeamStatistics(leagueIds?: number[]): Promise<SyncOutc
             )
           )
         ),
-        SYNC_CONCURRENCY
+        SYNC_CONCURRENCY,
+        limiter
       );
 
       const rows = stats
@@ -291,13 +332,33 @@ export async function syncTeamStatistics(leagueIds?: number[]): Promise<SyncOutc
     }
   }
 
+  const swept = leagues.length - skipped.length;
+  if (skipped.length > 0) {
+    problems.push(
+      `out of time after ${swept} of ${leagues.length} league(s) — not reached: ${skipped.join(",")}`
+    );
+  }
+
   return {
     job: "team_season_stats",
+    // Running out of time is a real shortfall, not a clean run: the row has to
+    // say so or the next morning's check reads a partial sweep as a whole one.
     ok: problems.length === 0,
     records: written,
-    detail: problems.length ? problems.join(" | ") : `${leagues.length} league(s) swept`,
+    detail: problems.length ? problems.join(" | ") : `${swept} league(s) swept`,
   };
 }
+
+/**
+ * Ceiling on the stored detail string.
+ *
+ * The column is unbounded text; the old 2,000 was arbitrary and cost real
+ * information — the first full cron run wrote exactly 2,000 characters and the
+ * cut fell mid-sentence inside the eleventh league, hiding what became of the
+ * twelfth and thirteenth. Generous enough that a whole run's failures fit, and
+ * when it does bite it now says so rather than trailing off.
+ */
+const DETAIL_LIMIT = 20_000;
 
 /** Record a run so a failure is visible without reading platform logs. */
 export async function recordRun(outcome: SyncOutcome, startedAt: string): Promise<void> {
@@ -309,7 +370,10 @@ export async function recordRun(outcome: SyncOutcome, startedAt: string): Promis
       finished_at: new Date().toISOString(),
       ok: outcome.ok,
       records: outcome.records,
-      detail: outcome.detail.slice(0, 2000),
+      detail:
+        outcome.detail.length > DETAIL_LIMIT
+          ? `${outcome.detail.slice(0, DETAIL_LIMIT)} […truncated, ${outcome.detail.length} chars]`
+          : outcome.detail,
     });
   } catch {
     // Bookkeeping must never be the thing that fails a sync.

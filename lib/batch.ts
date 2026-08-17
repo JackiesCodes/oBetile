@@ -9,17 +9,58 @@
  * the upstream rejects.
  *
  * Order is preserved so a caller can match results back to inputs positionally.
+ *
+ * `gate`, when given, is awaited immediately before each task starts. Concurrency
+ * alone bounds how many calls are in flight, not how fast they are issued, which
+ * is a different limit and the one the upstream actually enforces — see
+ * rateLimiter below.
  */
 export async function inBatches<T>(
   tasks: (() => Promise<T>)[],
-  size: number
+  size: number,
+  gate?: () => Promise<void>
 ): Promise<T[]> {
   if (size < 1) throw new Error("batch size must be at least 1");
   const out: T[] = [];
   for (let i = 0; i < tasks.length; i += size) {
-    out.push(...(await Promise.all(tasks.slice(i, i + size).map((task) => task()))));
+    out.push(
+      ...(await Promise.all(
+        tasks.slice(i, i + size).map(async (task) => {
+          if (gate) await gate();
+          return task();
+        })
+      ))
+    );
   }
   return out;
+}
+
+/**
+ * Issue start slots no faster than a fixed rate.
+ *
+ * Small concurrency was mistaken for a rate limit and it is not one. Three calls
+ * in flight against an upstream answering in ~170ms is roughly eighteen requests
+ * a second; the subscription allows five. The first full cron run made ~235 calls
+ * in 13 seconds and the provider rejected 72 of them, losing a third of the team
+ * statistics for the day.
+ *
+ * Slots are handed out on a running clock rather than by sleeping between
+ * batches, so the spacing holds no matter how many callers await the same gate
+ * or how long any individual call takes.
+ */
+export function rateLimiter(perSecond: number): () => Promise<void> {
+  const spacing = perSecond > 0 ? 1000 / perSecond : 0;
+  let next = 0;
+  return async () => {
+    if (spacing <= 0) return;
+    const now = Date.now();
+    // A slot in the past means the limiter has been idle; start from now rather
+    // than letting an old timestamp bank up a burst.
+    const slot = Math.max(now, next);
+    next = slot + spacing;
+    const wait = slot - now;
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  };
 }
 
 /**

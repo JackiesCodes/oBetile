@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inBatches, orNull, settle } from "@/lib/batch";
+import { inBatches, orNull, rateLimiter, settle } from "@/lib/batch";
 
 /** A task that takes real time and records how many were running alongside it. */
 function makeTracker() {
@@ -16,6 +16,35 @@ function makeTracker() {
   };
   return { task, peak: () => peak, order };
 }
+
+describe("rateLimiter", () => {
+  it("spaces slots by the rate, however many ask at once", async () => {
+    const gate = rateLimiter(50); // 20ms apart
+    const started = Date.now();
+    await Promise.all(Array.from({ length: 6 }, () => gate()));
+    // Six slots means five gaps: ~100ms, and the sixth caller must have waited
+    // even though all six asked simultaneously.
+    expect(Date.now() - started).toBeGreaterThanOrEqual(90);
+  });
+
+  it("does not bank up a burst while idle", async () => {
+    // A limiter left alone for a while must not then release a backlog of
+    // slots at once — that is exactly the burst the upstream rejects.
+    const gate = rateLimiter(100);
+    await gate();
+    await new Promise((r) => setTimeout(r, 60));
+    const started = Date.now();
+    await Promise.all([gate(), gate(), gate()]);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(15);
+  });
+
+  it("is a no-op when disabled", async () => {
+    const gate = rateLimiter(0);
+    const started = Date.now();
+    await Promise.all(Array.from({ length: 50 }, () => gate()));
+    expect(Date.now() - started).toBeLessThan(50);
+  });
+});
 
 describe("inBatches", () => {
   it("returns results in the order given, not the order they finish", async () => {
@@ -57,6 +86,21 @@ describe("inBatches", () => {
 
   it("does nothing for an empty list", async () => {
     expect(await inBatches([], 5)).toEqual([]);
+  });
+
+  it("paces starts through the gate without losing order", async () => {
+    // The bug this closes: concurrency bounded how many calls were in flight
+    // but not how fast they were issued, so a sweep at three-at-a-time still
+    // outran a five-a-second allowance and the upstream rejected a third of it.
+    const tasks = Array.from({ length: 9 }, (_, i) => async () => i);
+    const started = Date.now();
+    const out = await inBatches(tasks, 3, rateLimiter(100));
+    const elapsed = Date.now() - started;
+
+    expect(out).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    // Nine slots at 100/s is 80ms of spacing after the first, which no amount
+    // of concurrency may collapse.
+    expect(elapsed).toBeGreaterThanOrEqual(70);
   });
 
   it("refuses a batch size that would never make progress", async () => {

@@ -21,6 +21,15 @@ import { serverErrorResponse } from "@/lib/api-error";
  */
 
 export const maxDuration = 60;
+
+/**
+ * Wall clock the sync may use, leaving the rest of maxDuration to finish the
+ * league in hand and write its rows. The team sweep is paced to the upstream's
+ * rate limit and a full pass is close to a minute of calls, so it can genuinely
+ * run out — better it stop and say which leagues it missed than be killed
+ * partway and record nothing at all.
+ */
+const TIME_BUDGET_MS = 45_000;
 /** Never cached: a sync that returned a stored answer would do nothing at all. */
 export const dynamic = "force-dynamic";
 
@@ -56,6 +65,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const job = searchParams.get("job") ?? "all";
   const startedAt = new Date().toISOString();
+  const deadline = Date.now() + TIME_BUDGET_MS;
 
   try {
     const outcomes: SyncOutcome[] = [];
@@ -70,7 +80,7 @@ export async function GET(req: NextRequest) {
     if (job === "all" || job === "stats") {
       const league = Number(searchParams.get("league"));
       const leagues = Number.isInteger(league) && league > 0 ? [league] : undefined;
-      const out = await syncTeamStatistics(leagues);
+      const out = await syncTeamStatistics(leagues, deadline);
       outcomes.push(out);
       await recordRun(out, startedAt);
     }
