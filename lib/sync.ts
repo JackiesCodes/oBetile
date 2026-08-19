@@ -183,6 +183,65 @@ function toRecord(s: APITeamStatistics): TeamRecord {
   };
 }
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+/**
+ * League order for a full sweep: whatever was refreshed longest ago goes first.
+ *
+ * The deadline cuts the end of the list, so the order decides what goes stale.
+ * A fixed order starves the same competitions every night. Rotating the start
+ * daily was the first attempt and it moves one place a day while the cut is
+ * three or four deep — so a league near the end waits days: Brasileirão and
+ * Liga MX both sat on 17 August data through two later runs, still holding the
+ * partial tables a rate limit had left behind.
+ *
+ * Ordering by staleness puts exactly those at the front, and needs no state
+ * beyond the rows already stored. Leagues with no rows sort first — never swept,
+ * or a competition whose table has not been published yet, and both are worth
+ * looking at again.
+ *
+ * Returns null if the freshness read fails, so the caller can fall back rather
+ * than sweep in an order built from nothing.
+ */
+async function staleFirst(supabase: AdminClient, leagues: number[]): Promise<number[] | null> {
+  const freshest = new Map<number, number>();
+  try {
+    const { data, error } = await supabase
+      .from("team_season_stats")
+      .select("league_id,updated_at");
+    if (error || !data) return null;
+
+    for (const row of data as { league_id: number; updated_at: string }[]) {
+      const at = Date.parse(row.updated_at);
+      if (!Number.isFinite(at)) continue;
+      const seen = freshest.get(row.league_id);
+      if (seen === undefined || at > seen) freshest.set(row.league_id, at);
+    }
+  } catch {
+    // Ordering is an optimisation; never let it be what fails the sync.
+    return null;
+  }
+
+  // Ties keep the configured order, so the sweep is deterministic on a fresh
+  // database where every league is equally unswept.
+  return leagues
+    .map((id, position) => ({ id, position, at: freshest.get(id) ?? -Infinity }))
+    .sort((a, b) => a.at - b.at || a.position - b.position)
+    .map((l) => l.id);
+}
+
+/**
+ * Fallback order when staleness cannot be read.
+ *
+ * Rotating daily is worse than ordering by staleness but better than a fixed
+ * list: if the read is broken for a stretch, the cut tail at least moves.
+ */
+function rotated(leagues: number[]): number[] {
+  if (leagues.length === 0) return leagues;
+  const offset = Math.floor(Date.now() / 86_400_000) % leagues.length;
+  return offset ? [...leagues.slice(offset), ...leagues.slice(0, offset)] : leagues;
+}
+
 /**
  * Store each tracked league's team records, with the derived metrics alongside.
  *
@@ -195,7 +254,8 @@ function toRecord(s: APITeamStatistics): TeamRecord {
  * statistics call per team — roughly twenty per competition, so about 235 calls
  * for all thirteen. Paced to the subscription's rate that is close to a minute
  * of wall clock, against a function limit of the same order, which is why this
- * takes a deadline and stops cleanly instead of being killed mid-league.
+ * takes a deadline and stops cleanly instead of being killed mid-league — and
+ * why the order it sweeps in (see staleFirst) decides what goes stale.
  */
 export async function syncTeamStatistics(
   leagueIds?: number[],
@@ -205,12 +265,9 @@ export async function syncTeamStatistics(
   const asked = leagueIds?.length ? leagueIds : null;
   const all = asked ?? MAJOR_LEAGUES.map((l) => l.id);
 
-  // Rotate the starting point daily. Whatever the deadline cuts off is the tail
-  // of the list, and a fixed order would mean the same competitions are never
-  // swept — a permanent gap rather than a slow one. Only the standing sweep is
-  // rotated: an explicit ?league= list is a request for those, in that order.
-  const offset = asked ? 0 : Math.floor(Date.now() / 86_400_000) % all.length;
-  const leagues = offset ? [...all.slice(offset), ...all.slice(0, offset)] : all;
+  // An explicit ?league= list is a request for those, in that order. Only a full
+  // sweep is reordered, because only a full sweep can run out of time.
+  const leagues = asked ?? (await staleFirst(supabase, all)) ?? rotated(all);
 
   let written = 0;
   const problems: string[] = [];

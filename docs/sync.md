@@ -57,6 +57,38 @@ Authorise with `Authorization: Bearer $CRON_SECRET`, or `?secret=` for a manual
 run. A partial run answers **207** with the detail, rather than a flat success
 that hides half a job.
 
+## Why a run does not always finish
+
+Two limits meet almost exactly, and a full statistics sweep sits between them.
+The subscription allows 300 upstream calls a minute; the sweep needs about 235
+of them, one per team plus one standings call per league. Paced to stay inside
+that — 4 a second, leaving room for the requests the site itself is serving —
+a full pass takes close to a minute, against a function limit of 60 seconds.
+
+So the sweep takes a deadline and stops **between leagues**, never partway
+through one: a competition abandoned halfway would be counted as swept while
+holding an incomplete table. What it did not reach is named in the run's detail
+and the run is recorded as not ok:
+
+```
+out of time after 9 of 13 league(s) — not reached: 71,262,307,39
+```
+
+That is expected output, not a fault. Roughly nine or ten of the thirteen
+leagues complete per run.
+
+Which leagues get cut is therefore decided by the order, and the order is
+**stalest first** — whatever was written longest ago goes to the front, leagues
+with no rows at all before that. A fixed list would starve the same tail every
+night. Rotating the start daily, which this used to do, advances one place a day
+while the cut is three or four deep, so a league near the end waits days: after
+that change Brasileirão and Liga MX both sat on three-day-old partial tables.
+Ordering by staleness needs no extra state — the `updated_at` already on every
+row is the whole input.
+
+An explicit `?league=` list is never reordered. That is a request for those
+competitions, in that order.
+
 ## What gets stored
 
 | Table | Contents | Rough size |
