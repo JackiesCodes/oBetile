@@ -136,6 +136,86 @@ export function outcomeProbabilities(lambdaHome: number, lambdaAway: number): Pr
   return normalise({ home, draw, away });
 }
 
+/**
+ * The scoreline grid: grid[i][j] is the probability of home i, away j.
+ *
+ * This is what the model actually computes; the three match outcomes are just
+ * one way of adding it up. Every goal market — both teams to score, over and
+ * under a line, the exact score — is a different sum over these same cells, so
+ * exposing the grid is what makes them derivable rather than separately
+ * modelled. Cells are built in the same order outcomeProbabilities sums them,
+ * so the two agree exactly rather than approximately.
+ */
+export type ScoreGrid = number[][];
+
+export function scoreGrid(lambdaHome: number, lambdaAway: number): ScoreGrid {
+  const grid: ScoreGrid = [];
+  for (let i = 0; i <= MAX_GOALS; i++) {
+    const pHome = poissonPmf(i, lambdaHome);
+    const row: number[] = [];
+    for (let j = 0; j <= MAX_GOALS; j++) {
+      row.push(pHome * poissonPmf(j, lambdaAway) * lowScoreAdjustment(i, j, lambdaHome, lambdaAway));
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+/** Sum a grid into the three match outcomes. */
+export function gridOutcomes(grid: ScoreGrid): Probabilities {
+  let home = 0;
+  let draw = 0;
+  let away = 0;
+  for (let i = 0; i < grid.length; i++) {
+    for (let j = 0; j < grid[i].length; j++) {
+      const p = grid[i][j];
+      if (i > j) home += p;
+      else if (i === j) draw += p;
+      else away += p;
+    }
+  }
+  return normalise({ home, draw, away });
+}
+
+/**
+ * Reweight a grid so it adds up to a given set of match outcomes.
+ *
+ * The published 1X2 is not the raw grid: head to head blends it, and a fitted
+ * temperature flattens it because the model was measurably more confident than
+ * it had earned. Both act on three numbers, after the grid has been collapsed,
+ * so a market read straight off the raw grid would quietly disagree with the
+ * headline percentage next to it — the same fixture priced two ways.
+ *
+ * Scaling every cell by its region's correction fixes that: the grid then sums
+ * to exactly the published 1X2, while the shape within each region — which
+ * scoreline, how many goals — is left as the Poisson model had it.
+ *
+ * This makes the derived markets CONSISTENT with a calibrated 1X2. It does not
+ * make them calibrated: the temperature was fitted against match outcomes, and
+ * nothing here has yet shown it is the right correction for goal totals. Each
+ * market needs measuring on its own before it is published — see
+ * scripts/backtest.ts.
+ */
+export function fitToOutcomes(grid: ScoreGrid, target: Probabilities): ScoreGrid {
+  const current = gridOutcomes(grid);
+  const factor = (region: keyof Probabilities) =>
+    current[region] > 0 ? target[region] / current[region] : 0;
+
+  const factors = { home: factor("home"), draw: factor("draw"), away: factor("away") };
+
+  let total = 0;
+  const scaled = grid.map((row, i) =>
+    row.map((p, j) => {
+      const out = p * (i > j ? factors.home : i === j ? factors.draw : factors.away);
+      total += out;
+      return out;
+    })
+  );
+
+  if (!Number.isFinite(total) || total <= 0) return grid;
+  return scaled.map((row) => row.map((p) => p / total));
+}
+
 /** Rescale three non-negative numbers so they sum to exactly 1. */
 export function normalise(p: Probabilities): Probabilities {
   const total = p.home + p.draw + p.away;
@@ -320,6 +400,27 @@ export interface PredictionInput {
  * too thin to say anything useful.
  */
 export function predictFixture({ home, away, table, h2h }: PredictionInput): Probabilities | null {
+  const adjusted = adjustedLambdas({ home, away, table });
+  if (!adjusted) return null;
+
+  const raw = applyHeadToHead(outcomeProbabilities(adjusted.home, adjusted.away), h2h ?? null);
+
+  // Last step before anyone sees a number: the model is measurably more
+  // confident than it has earned, so temper it.
+  return applyTemperature(raw);
+}
+
+/**
+ * Expected goals for each side after form, or null when the inputs are too thin.
+ *
+ * Split out so the grid and the three outcomes are built from the same numbers
+ * rather than two copies of the same pipeline that could drift apart.
+ */
+function adjustedLambdas({
+  home,
+  away,
+  table,
+}: Omit<PredictionInput, "h2h">): { home: number; away: number } | null {
   if (totalPlayed(home) < MIN_MATCHES_PLAYED || totalPlayed(away) < MIN_MATCHES_PLAYED) {
     return null;
   }
@@ -330,16 +431,27 @@ export function predictFixture({ home, away, table, h2h }: PredictionInput): Pro
   const lambdas = expectedGoals(home, away, avg);
   if (!lambdas) return null;
 
-  const adjusted = {
+  return {
     home: applyForm(lambdas.home, home.form),
     away: applyForm(lambdas.away, away.form),
   };
+}
 
-  const raw = applyHeadToHead(outcomeProbabilities(adjusted.home, adjusted.away), h2h ?? null);
+/**
+ * The scoreline grid for a fixture, fitted to the published match outcomes.
+ *
+ * The source for every goal-derived market. Returns null on exactly the same
+ * inputs predictFixture refuses, so a fixture the model will not call is not
+ * quietly given goal markets instead.
+ */
+export function predictGrid(input: PredictionInput): ScoreGrid | null {
+  const adjusted = adjustedLambdas(input);
+  if (!adjusted) return null;
 
-  // Last step before anyone sees a number: the model is measurably more
-  // confident than it has earned, so temper it.
-  return applyTemperature(raw);
+  const outcomes = predictFixture(input);
+  if (!outcomes) return null;
+
+  return fitToOutcomes(scoreGrid(adjusted.home, adjusted.away), outcomes);
 }
 
 /** Percentages rounded to whole numbers that still total exactly 100. */

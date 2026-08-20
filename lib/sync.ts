@@ -110,8 +110,19 @@ export async function syncFixtureResults(days = 2): Promise<SyncOutcome> {
         away_team_id: f.teams?.away?.id ?? null,
         home_team: f.teams.home.name,
         away_team: f.teams.away.name,
+        // The final score, extra time included — what 1X2 settles on.
         home_goals: f.goals?.home ?? null,
         away_goals: f.goals?.away ?? null,
+        // The ninety-minute and half-time scores, which goal markets settle on
+        // instead. Only a tie taken to extra time makes the first pair differ
+        // from the last, but the tracked set includes the Champions League, so
+        // that case is reachable. Falls back to the final score when the
+        // provider gives no split — true of every match that never went past
+        // ninety minutes, and the closest thing to right for the rest.
+        home_goals_90: f.score?.fulltime?.home ?? f.goals?.home ?? null,
+        away_goals_90: f.score?.fulltime?.away ?? f.goals?.away ?? null,
+        home_goals_ht: f.score?.halftime?.home ?? null,
+        away_goals_ht: f.score?.halftime?.away ?? null,
         status: short,
         outcome: outcomeOf(f),
         finished: true,

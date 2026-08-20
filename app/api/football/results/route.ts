@@ -29,6 +29,17 @@ export interface FixtureResult {
   home: string;
   away: string;
   goals: { home: number | null; away: number | null };
+  /**
+   * The score at ninety minutes, which is what goal markets settle on.
+   *
+   * Identical to `goals` unless a tie went to extra time, where `goals` carries
+   * the winner and this carries the number of goals the market was about. Null
+   * when the provider gave no split and no final score to fall back on, or when
+   * the row predates the columns — settlement waits rather than guessing.
+   */
+  goals90: { home: number | null; away: number | null };
+  /** The score at half time, for the half-based markets. */
+  goalsHt: { home: number | null; away: number | null };
   /** Who won, once finished. Null while the match is still to be decided. */
   outcome: Outcome;
   kickoff: string;
@@ -48,7 +59,10 @@ async function readStoredResults(ids: number[]): Promise<Record<string, FixtureR
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("fixture_results")
-      .select("fixture_id,status,home_team,away_team,home_goals,away_goals,outcome,kickoff")
+      // One string literal, not a concatenation: the client infers the row type
+      // by parsing this at compile time, and an expression defeats that.
+      // eslint-disable-next-line max-len
+      .select("fixture_id,status,home_team,away_team,home_goals,away_goals,home_goals_90,away_goals_90,home_goals_ht,away_goals_ht,outcome,kickoff")
       .in("fixture_id", ids)
       .eq("finished", true);
 
@@ -63,6 +77,12 @@ async function readStoredResults(ids: number[]): Promise<Record<string, FixtureR
         home: row.home_team,
         away: row.away_team,
         goals: { home: row.home_goals, away: row.away_goals },
+        // Rows written before the ninety-minute columns existed have nulls
+        // here. Left null rather than defaulted to the final score: for the
+        // fixtures where the two differ, defaulting would settle a goal market
+        // on extra time and look entirely correct doing it.
+        goals90: { home: row.home_goals_90, away: row.away_goals_90 },
+        goalsHt: { home: row.home_goals_ht, away: row.away_goals_ht },
         outcome: row.outcome as Outcome,
         kickoff: row.kickoff,
       };
@@ -135,6 +155,14 @@ export async function GET(req: NextRequest) {
           home: f.teams.home.name,
           away: f.teams.away.name,
           goals: { home: f.goals.home, away: f.goals.away },
+          goals90: {
+            home: f.score?.fulltime?.home ?? f.goals.home,
+            away: f.score?.fulltime?.away ?? f.goals.away,
+          },
+          goalsHt: {
+            home: f.score?.halftime?.home ?? null,
+            away: f.score?.halftime?.away ?? null,
+          },
           outcome: outcomeOf(f),
           kickoff: f.fixture.date,
         };
