@@ -11,6 +11,7 @@ import MatchStats from "@/components/match-detail/MatchStats";
 import MatchH2H from "@/components/match-detail/MatchH2H";
 import MatchStandings from "@/components/match-detail/MatchStandings";
 import MatchVotePanel from "@/components/match-detail/MatchVotePanel";
+import MatchDerivedMarkets from "@/components/match-detail/MatchDerivedMarkets";
 import { ChevronLeft } from "lucide-react";
 import clsx from "clsx";
 import { useMatchDetail } from "@/context/MatchDetailContext";
@@ -236,6 +237,13 @@ export default function MatchDetailPage() {
             homeTeamName={fixture.teams.home.name}
             awayTeamName={fixture.teams.away.name}
           />
+          <MatchDerivedMarkets
+            fixtureId={fixture.fixture.id}
+            homeTeamName={fixture.teams.home.name}
+            awayTeamName={fixture.teams.away.name}
+            kickoff={fixture.fixture.date ?? null}
+            status={fixtureStatus}
+          />
           {/* Only once there is something to show. Above xl the centre column
               has no tabs, so an empty state here would be permanent furniture
               on every upcoming fixture. */}
@@ -252,12 +260,21 @@ export default function MatchDetailPage() {
         {/* Mobile: show whichever tab is active */}
         <div className="xl:hidden">
           {mobileTab === "predictions" && (
-            <MatchVotePanel
-              fixtureId={fixture.fixture.id}
-              prediction={prediction}
-              homeTeamName={fixture.teams.home.name}
-              awayTeamName={fixture.teams.away.name}
-            />
+            <>
+              <MatchVotePanel
+                fixtureId={fixture.fixture.id}
+                prediction={prediction}
+                homeTeamName={fixture.teams.home.name}
+                awayTeamName={fixture.teams.away.name}
+              />
+              <MatchDerivedMarkets
+                fixtureId={fixture.fixture.id}
+                homeTeamName={fixture.teams.home.name}
+                awayTeamName={fixture.teams.away.name}
+                kickoff={fixture.fixture.date ?? null}
+                status={fixtureStatus}
+              />
+            </>
           )}
           {mobileTab === "summary" && (
             <MatchSummary

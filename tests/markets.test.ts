@@ -1,14 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
   MARKETS,
+  OFFERED_MARKETS,
   isValidSelection,
+  priceFromOutcomes,
   marketById,
   priceMarket,
   settlePick,
   sumGrid,
   type SettlementFixture,
 } from "@/lib/markets";
-import { predictGrid, scoreGrid, type TeamRecord } from "@/lib/model";
+import { predictFixture, predictGrid, scoreGrid, type TeamRecord } from "@/lib/model";
 
 /**
  * Pricing and settling the goal-derived markets.
@@ -189,10 +191,31 @@ describe("what cannot be settled stays pending", () => {
 });
 
 describe("the catalogue is the allowlist", () => {
-  it("accepts every choice it offers", () => {
-    for (const m of MARKETS) {
+  it("accepts every choice of every offered market", () => {
+    for (const m of OFFERED_MARKETS) {
       for (const c of m.choices) expect(isValidSelection(m.id, c.id)).toBe(true);
     }
+  });
+
+  it("rejects a market that measured badly, however valid its choice", () => {
+    // btts:yes is a real, correct, tested selection. It is refused because the
+    // backtest said its fixture-specific price is worse than the season
+    // average, and there is no point offering a number like that.
+    expect(MARKETS.some((m) => m.id === "btts")).toBe(true);
+    expect(isValidSelection("btts", "yes")).toBe(false);
+    expect(isValidSelection("ou_2_5", "over")).toBe(false);
+    expect(isValidSelection("odd_even", "odd")).toBe(false);
+  });
+
+  it("still settles a withdrawn market, so no pick is ever stranded", () => {
+    // The gate is on making new picks, not on honouring old ones. If a market
+    // is ever withdrawn after someone has picked it, that pick must still
+    // resolve rather than sit pending forever.
+    expect(settlePick("btts", "yes", finished(1, 1))).toBe("correct");
+  });
+
+  it("offers only what the backtest cleared", () => {
+    expect(OFFERED_MARKETS.map((m) => m.id).sort()).toEqual(["1x2", "dnb", "double_chance"]);
   });
 
   it("rejects anything else", () => {
@@ -207,6 +230,64 @@ describe("the catalogue is the allowlist", () => {
   it("has no duplicate choice ids within a market", () => {
     for (const m of MARKETS) {
       expect(new Set(m.choices.map((c) => c.id)).size).toBe(m.choices.length);
+    }
+  });
+});
+
+describe("pricing from the published 1X2 alone", () => {
+  const published = { home: 0.52, draw: 0.26, away: 0.22 };
+
+  it("gives double chance the sum of its two results", () => {
+    const priced = priceFromOutcomes(marketById("double_chance")!, published)!;
+    expect(priced["1x"]).toBeCloseTo(0.78, 12);
+    expect(priced["12"]).toBeCloseTo(0.74, 12);
+    expect(priced["x2"]).toBeCloseTo(0.48, 12);
+  });
+
+  it("gives draw no bet the decisive share", () => {
+    const priced = priceFromOutcomes(marketById("dnb")!, published)!;
+    expect(priced.home).toBeCloseTo(0.52 / 0.74, 12);
+    expect(priced.away).toBeCloseTo(0.22 / 0.74, 12);
+    expect(priced.home + priced.away).toBeCloseTo(1, 12);
+  });
+
+  it("returns the published figures back for the match result itself", () => {
+    const priced = priceFromOutcomes(marketById("1x2")!, published)!;
+    expect(priced.home).toBeCloseTo(0.52, 12);
+    expect(priced.draw).toBeCloseTo(0.26, 12);
+    expect(priced.away).toBeCloseTo(0.22, 12);
+  });
+
+  it("refuses a market that reads scorelines", () => {
+    // Three numbers cannot say how many goals were scored, and a confident
+    // wrong answer here would be indistinguishable from a right one.
+    expect(priceFromOutcomes(marketById("btts")!, published)).toBeNull();
+    expect(priceFromOutcomes(marketById("ou_2_5")!, published)).toBeNull();
+  });
+
+  it("agrees exactly with the same market priced off a fitted grid", () => {
+    // The shortcut exists because the fit guarantees these are the same number.
+    // If that ever stops being true, the app would show one figure on the card
+    // and a different one on the match page for the same prediction.
+    const team = (gf: number, ga: number): TeamRecord => ({
+      teamId: Math.round(gf * 100 + ga),
+      home: { played: 10, goalsFor: gf * 10, goalsAgainst: ga * 10 },
+      away: { played: 10, goalsFor: gf * 8, goalsAgainst: ga * 12 },
+      form: null,
+    });
+    const table = [team(1.8, 0.9), team(1.5, 1.1), team(1.2, 1.4), team(0.9, 1.8)];
+    const input = { home: team(1.9, 0.8), away: team(1.0, 1.5), table };
+
+    const grid = predictGrid(input)!;
+    const outcomes = predictFixture(input)!;
+
+    for (const id of ["1x2", "double_chance", "dnb"]) {
+      const market = marketById(id)!;
+      const viaGrid = priceMarket(market, grid);
+      const viaOutcomes = priceFromOutcomes(market, outcomes)!;
+      for (const c of market.choices) {
+        expect(viaOutcomes[c.id]).toBeCloseTo(viaGrid[c.id], 10);
+      }
     }
   });
 });

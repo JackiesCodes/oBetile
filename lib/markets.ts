@@ -51,6 +51,25 @@ export interface Market {
   label: string;
   description: string;
   settlesOn: SettlesOn;
+  /**
+   * Whether this market may be offered to anyone.
+   *
+   * Set from measurement, not from whether the code works. scripts/backtest.ts
+   * --markets scores every market against the only bar that matters: skill
+   * against its own base rate, which is what quoting the season average for
+   * every fixture would score. Over the 2025 Premier League, LaLiga and Serie A
+   * seasons, the markets made of match results carry real skill — draw no bet
+   * the most of anything measured, at +7.6% to +14.6% — and every goal market
+   * lands at or below zero in at least two of the three.
+   *
+   * Below zero means the fixture-specific number is worse than saying nothing,
+   * and it is not a calibration problem that a correction could fix: the banded
+   * tables show the actual rate flat or inverted across prediction bands, so
+   * there is no relationship there to correct. Those markets stay defined —
+   * they are correct, tested, and settle properly — and stay unoffered until
+   * something can actually predict a total.
+   */
+  offered: boolean;
   choices: MarketChoice[];
 }
 
@@ -78,6 +97,7 @@ const MATCH_RESULT: Market = {
   label: "Match Result",
   description: "Who wins the match",
   settlesOn: "outcome",
+  offered: true,
   choices: (["home", "draw", "away"] as const).map((side) => ({
     id: side,
     label: side === "home" ? "Home" : side === "away" ? "Away" : "Draw",
@@ -91,6 +111,7 @@ const DOUBLE_CHANCE: Market = {
   label: "Double Chance",
   description: "Two of the three results covered",
   settlesOn: "outcome",
+  offered: true,
   choices: (
     [
       { id: "1x", label: "Home or Draw", sides: ["home", "draw"] },
@@ -112,6 +133,7 @@ const DRAW_NO_BET: Market = {
   label: "Draw No Bet",
   description: "Backing a side, with a draw voided rather than lost",
   settlesOn: "outcome",
+  offered: true,
   choices: (["home", "away"] as const).map((side) => ({
     id: side,
     label: side === "home" ? "Home" : "Away",
@@ -141,6 +163,8 @@ const BTTS: Market = {
   label: "Both Teams to Score",
   description: "Both sides get on the scoresheet",
   settlesOn: "goals",
+  // Skill -5.1% / -4.0% / -3.2% across the three seasons measured.
+  offered: false,
   choices: [
     {
       id: "yes",
@@ -179,6 +203,8 @@ function overUnder(line: number): Market {
     label: `Over/Under ${shown} Goals`,
     description: `Total goals in the match, against a line of ${shown}`,
     settlesOn: "goals",
+    // Every line scored at or below zero skill in at least two of three seasons.
+    offered: false,
     choices: [
       {
         id: "over",
@@ -203,6 +229,8 @@ const ODD_EVEN: Market = {
   label: "Odd or Even Goals",
   description: "Whether the total number of goals is odd or even",
   settlesOn: "goals",
+  // Skill within a point of zero every season: a coin flip, priced as if not.
+  offered: false,
   choices: [
     {
       id: "odd",
@@ -235,14 +263,23 @@ export function marketById(id: string): Market | undefined {
   return BY_ID.get(id);
 }
 
+/** The markets that may actually be shown and picked. */
+export const OFFERED_MARKETS: Market[] = MARKETS.filter((m) => m.offered);
+
 /**
  * Whether a market/selection pair is one the app actually offers.
  *
  * Derived from the catalogue rather than restated, so a market cannot be
- * offered without also being accepted.
+ * offered without also being accepted — and, since it reads `offered`, a market
+ * that measured badly cannot be picked even if something tries.
+ *
+ * Note what this is not: settlePick deliberately does not consult `offered`, so
+ * withdrawing a market never strands a pick somebody already made.
  */
 export function isValidSelection(market: string, selection: string): boolean {
-  return BY_ID.get(market)?.choices.some((c) => c.id === selection) ?? false;
+  const m = BY_ID.get(market);
+  if (!m?.offered) return false;
+  return m.choices.some((c) => c.id === selection);
 }
 
 /**
@@ -291,6 +328,53 @@ export function selectionLabel(
 /** Every choice in a market, priced off one grid. */
 export function priceMarket(market: Market, grid: ScoreGrid): Record<string, number> {
   return Object.fromEntries(market.choices.map((c) => [c.id, c.probability(grid)]));
+}
+
+/**
+ * A minimal grid carrying only the three results.
+ *
+ * 1-0 is a home win, 0-0 a draw, 0-1 an away win — enough for any market whose
+ * choices are made of results, and meaningless for one that reads a scoreline.
+ */
+function outcomeGrid(p: { home: number; draw: number; away: number }): ScoreGrid {
+  return [
+    [p.draw, p.away],
+    [p.home, 0],
+  ];
+}
+
+/**
+ * Price a market from the published 1X2 alone.
+ *
+ * Double chance and draw no bet are functions of the match result and nothing
+ * else, so they need no scoreline grid, no extra request and no model call —
+ * the three percentages the app already fetches are the entire input. They are
+ * also then incapable of disagreeing with the figure shown beside them, which
+ * fitting the grid was the long way round to achieving.
+ *
+ * Returns null for a market that reads scorelines, because those cannot be
+ * recovered from three numbers and a plausible-looking wrong answer is worse
+ * than none.
+ *
+ * Input may be fractions or percentages. It is normalised first, because the
+ * markets do not agree on units otherwise: double chance adds its two results
+ * and keeps whatever scale it was given, while draw no bet divides one by
+ * another and always lands between nought and one. Handed percentages, those
+ * two would return 78 and 0.7 and both look plausible.
+ *
+ * Returns fractions.
+ */
+export function priceFromOutcomes(
+  market: Market,
+  p: { home: number; draw: number; away: number }
+): Record<string, number> | null {
+  if (market.settlesOn !== "outcome") return null;
+
+  const total = p.home + p.draw + p.away;
+  if (!Number.isFinite(total) || total <= 0) return null;
+  const unit = { home: p.home / total, draw: p.draw / total, away: p.away / total };
+
+  return priceMarket(market, outcomeGrid(unit));
 }
 
 /**
