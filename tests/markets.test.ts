@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  CATEGORY_LABELS,
   MARKETS,
   OFFERED_MARKETS,
+  categoryOf,
   isValidSelection,
   priceFromOutcomes,
   marketById,
@@ -545,6 +547,41 @@ describe("pricing from the published 1X2 alone", () => {
       for (const c of market.choices) {
         expect(viaOutcomes[c.id]).toBeCloseTo(viaGrid[c.id], 10);
       }
+    }
+  });
+});
+
+describe("categories decide what a filter shows", () => {
+  it("puts every market in exactly one category", () => {
+    // A market that lands in the wrong bucket is not merely mislabelled — it
+    // disappears from the filter someone would look under for it.
+    for (const m of MARKETS) {
+      expect(Object.keys(CATEGORY_LABELS)).toContain(categoryOf(m));
+    }
+  });
+
+  it("groups by what the market asks about, not by its name", () => {
+    expect(categoryOf(marketById("dnb")!)).toBe("result");
+    expect(categoryOf(marketById("ou_2_5")!)).toBe("totals");
+    expect(categoryOf(marketById("team_total_home_1_5")!)).toBe("totals");
+    expect(categoryOf(marketById("ah_m1")!)).toBe("handicap");
+    expect(categoryOf(marketById("eh_p1")!)).toBe("handicap");
+    expect(categoryOf(marketById("result_btts")!)).toBe("combo");
+    expect(categoryOf(marketById("btts")!)).toBe("goals");
+  });
+
+  it("sends a half market to halves even when its name says otherwise", () => {
+    // btts_1h starts with "btts" and would match the goals rule; it is about a
+    // half, and the half check runs first for exactly that reason.
+    expect(categoryOf(marketById("btts_1h")!)).toBe("halves");
+    expect(categoryOf(marketById("btts_2h")!)).toBe("halves");
+    expect(categoryOf(marketById("ht_ft")!)).toBe("halves");
+  });
+
+  it("leaves no category empty of markets", () => {
+    // An empty filter tab is a dead control.
+    for (const category of Object.keys(CATEGORY_LABELS)) {
+      expect(MARKETS.some((m) => categoryOf(m) === category), category).toBe(true);
     }
   });
 });

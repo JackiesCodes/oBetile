@@ -898,6 +898,36 @@ export const MARKETS: Market[] = DEFINITIONS.map((definition) => ({
 
 const BY_ID = new Map(MARKETS.map((m) => [m.id, m]));
 
+/**
+ * Which group a market belongs to, for the filter row on the match page.
+ *
+ * Derived from the market's own id rather than declared on each one: the ids
+ * already encode the family, and a second field would be one more thing to keep
+ * in step with forty-six definitions.
+ */
+export type MarketCategory = "result" | "goals" | "totals" | "halves" | "handicap" | "combo";
+
+export function categoryOf(market: Market): MarketCategory {
+  const { id, settlesOn } = market;
+  if (settlesOn === "halves") return "halves";
+  if (id.startsWith("ah_") || id.startsWith("eh_")) return "handicap";
+  if (id.startsWith("result_") || id.startsWith("btts_ou") || id.startsWith("dc_ou")) return "combo";
+  if (id.startsWith("ou_") || id.startsWith("team_total_") || id === "exact_goals" || id === "goal_bands" || id === "multi_goals") {
+    return "totals";
+  }
+  if (id === "1x2" || id === "double_chance" || id === "dnb") return "result";
+  return "goals";
+}
+
+export const CATEGORY_LABELS: Record<MarketCategory, string> = {
+  result: "Result",
+  goals: "Goals",
+  totals: "Totals",
+  halves: "Halves",
+  handicap: "Handicaps",
+  combo: "Combos",
+};
+
 export function marketById(id: string): Market | undefined {
   return BY_ID.get(id);
 }
