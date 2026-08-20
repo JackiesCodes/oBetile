@@ -11,6 +11,7 @@ import {
   type SettlementFixture,
 } from "@/lib/markets";
 import { predictFixture, predictGrid, scoreGrid, type TeamRecord } from "@/lib/model";
+import { normaliseToFairOdds } from "@/lib/odds";
 
 /**
  * Pricing and settling the goal-derived markets.
@@ -456,6 +457,50 @@ describe("pricing from the published 1X2 alone", () => {
         expect(viaOutcomes[c.id]).toBeCloseTo(viaGrid[c.id], 10);
       }
     }
+  });
+});
+
+describe("odds are not probabilities", () => {
+  it("inverts the ordering if the two are confused", () => {
+    /*
+     * The shape of a bug that shipped. normaliseToFairOdds returns decimal
+     * ODDS — total/percent — and those were handed to the grid fit as though
+     * they were probabilities. Odds run the other way: the likeliest outcome
+     * carries the SMALLEST number. So the favourite was priced as the least
+     * likely, every one of the forty markets inherited it, and every figure
+     * still looked like a plausible percentage.
+     *
+     * Asserted as a property rather than a fixed number: whatever else changes,
+     * the shortest price must stay the likeliest outcome.
+     */
+    const p = { home: 0.5, draw: 0.3, away: 0.2 };
+    const odds = normaliseToFairOdds({ home: p.home * 100, draw: p.draw * 100, away: p.away * 100 })!;
+
+    expect(odds.home).toBeLessThan(odds.draw);
+    expect(odds.draw).toBeLessThan(odds.away);
+    // And the way back is reciprocal, not division by a hundred.
+    expect(1 / odds.home).toBeCloseTo(p.home, 10);
+    expect(1 / odds.draw).toBeCloseTo(p.draw, 10);
+    expect(1 / odds.away).toBeCloseTo(p.away, 10);
+  });
+
+  it("keeps the favourite the favourite once markets are priced", () => {
+    const team = (gf: number, ga: number): TeamRecord => ({
+      teamId: Math.round(gf * 100 + ga),
+      home: { played: 10, goalsFor: gf * 10, goalsAgainst: ga * 10 },
+      away: { played: 10, goalsFor: gf * 8, goalsAgainst: ga * 12 },
+      form: null,
+    });
+    const table = [team(1.8, 0.9), team(1.5, 1.1), team(1.2, 1.4), team(0.9, 1.8)];
+    // A strong home side against a weak away one: home must come out likeliest
+    // in the priced market, not merely in the raw model output.
+    const input = { home: team(2.1, 0.6), away: team(0.8, 1.9), table };
+    const published = predictFixture(input)!;
+    const priced = priceMarket(marketById("1x2")!, predictGrid(input)!);
+
+    expect(published.home).toBeGreaterThan(published.away);
+    expect(priced.home).toBeGreaterThan(priced.away);
+    expect(priced.home).toBeCloseTo(published.home, 10);
   });
 });
 

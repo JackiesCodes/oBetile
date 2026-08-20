@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetch, resolveSeason } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import { normaliseToFairOdds } from "@/lib/odds";
-import { fitToOutcomes, predictFixture, predictGrid, type TeamRecord, type HeadToHead } from "@/lib/model";
+import { predictFixture, predictGrid, type TeamRecord, type HeadToHead } from "@/lib/model";
 import { OFFERED_MARKETS, priceMarket } from "@/lib/markets";
 import type { APIFixture } from "@/types";
 
@@ -208,25 +208,22 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // Refitted to the figures actually published rather than to the model's
-      // raw output: normaliseToFairOdds is the last thing to touch them, and a
-      // market read off an unfitted grid would disagree with the percentage
-      // printed beside it.
+      /*
+       * predictGrid is already fitted to these exact probabilities, so it is
+       * used as it comes.
+       *
+       * An earlier version refitted it to `fair` for "consistency with what is
+       * published". `fair` is decimal ODDS — normaliseToFairOdds returns
+       * total/percent — so that fed 2.22 in where 0.45 belonged and inverted
+       * the whole thing: the shortest price came out as the least likely
+       * outcome, and every one of the forty markets was priced off a backwards
+       * match result while looking entirely reasonable. There is nothing to
+       * refit to in any case, since fair odds are the same distribution written
+       * the other way up: 1/odds is the probability.
+       */
       const grid = predictGrid({ home, away, table, h2h });
       const markets = grid
-        ? Object.fromEntries(
-            OFFERED_MARKETS.map((m) => [
-              m.id,
-              priceMarket(
-                m,
-                fitToOutcomes(grid, {
-                  home: fair.home / 100,
-                  draw: fair.draw / 100,
-                  away: fair.away / 100,
-                })
-              ),
-            ])
-          )
+        ? Object.fromEntries(OFFERED_MARKETS.map((m) => [m.id, priceMarket(m, grid)]))
         : undefined;
 
       result[String(f.fixture.id)] = markets ? { ...fair, markets } : fair;
