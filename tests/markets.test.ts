@@ -356,9 +356,13 @@ describe("halves", () => {
     expect(settlePick("second_half_result", "home", withHalves(3, 0, 1, 0))).toBeNull();
   });
 
-  it("is marked unmeasured rather than claiming either way", () => {
+  it("carries the backtest result now that it has one", () => {
+    // These were shipped as "unmeasured" and then measured. Every one lost to
+    // its own base rate, so the label is the same as the goal markets get —
+    // the section they render in still says more, because the independence
+    // assumption is a caveat measurement does not capture.
     for (const m of MARKETS.filter((m) => m.settlesOn === "halves")) {
-      expect(m.evidence).toBe("unmeasured");
+      expect(m.evidence).toBe("no-better-than-base-rate");
     }
   });
 });

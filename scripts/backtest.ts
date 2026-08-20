@@ -17,7 +17,14 @@
  */
 
 import { readFileSync } from "fs";
-import { predictFixture, predictGrid, type TeamRecord, type Probabilities } from "@/lib/model";
+import {
+  fixtureLambdas,
+  halfGrids,
+  predictFixture,
+  predictGrid,
+  type TeamRecord,
+  type Probabilities,
+} from "@/lib/model";
 import { MARKETS, priceMarket, settlePick } from "@/lib/markets";
 
 interface Row {
@@ -30,6 +37,9 @@ interface Row {
   an: string;
   gh: number | null;
   ga: number | null;
+  /** Half-time score, where the source carried one. */
+  h1?: number | null;
+  a1?: number | null;
 }
 
 type Outcome = "home" | "draw" | "away";
@@ -315,7 +325,8 @@ async function main() {
 
       if (withMarkets) {
         const grid = predictGrid({ home: toRecord(home), away: toRecord(away), table });
-        if (grid) {
+        const lambdas = fixtureLambdas({ home: toRecord(home), away: toRecord(away), table });
+        if (grid && lambdas) {
           // Settled through the real settlement path rather than a rewritten
           // copy of it, so a bug in one is a failure here rather than a pair of
           // mistakes that agree with each other.
@@ -323,9 +334,20 @@ async function main() {
           // These are league fixtures, where the final score is the
           // ninety-minute score; a cup tie taken to extra time would need the
           // split the provider gives and this replay does not carry.
-          const fixture = { finished: true, outcome: actual, goals90: { home: r.gh!, away: r.ga! } };
+          const fixture = {
+            finished: true,
+            outcome: actual,
+            goals90: { home: r.gh!, away: r.ga! },
+            // Half markets score only where the source carried a half-time
+            // score; settlePick returns null otherwise and they are skipped.
+            goalsHt:
+              typeof r.h1 === "number" && typeof r.a1 === "number"
+                ? { home: r.h1, away: r.a1 }
+                : null,
+          };
+          const context = { full: grid, ...halfGrids(lambdas.home, lambdas.away) };
           for (const market of MARKETS) {
-            const priced = priceMarket(market, grid);
+            const priced = priceMarket(market, context);
             for (const choice of market.choices) {
               const result = settlePick(market.id, choice.id, fixture);
               // A push is neither right nor wrong, so it says nothing about
@@ -386,10 +408,11 @@ async function main() {
     summariseMarkets(marketScored);
     for (const [market, choice] of [
       ["btts", "yes"],
-      ["ou_1_5", "over"],
       ["ou_2_5", "over"],
-      ["ou_3_5", "over"],
       ["1x2", "home"],
+      ["first_half_result", "home"],
+      ["btts_1h", "yes"],
+      ["highest_scoring_half", "second"],
     ] as const) {
       marketCalibration(marketScored, market, choice);
     }

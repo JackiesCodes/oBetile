@@ -643,6 +643,13 @@ const DOUBLE_CHANCE_OVER_UNDER = combo(
  *
  * They settle on the half-time score, which fixture_results has only carried
  * since 20 August 2026. Anything older settles to nothing rather than guessing.
+ *
+ * Since measured, and none of them clear the bar: half time / full time +0.9%,
+ * first half result +0.5%, second half result 0.0%, highest scoring half -0.6%,
+ * both teams to score -3.0% and -4.5% for the two halves — pooled skill in the
+ * worst of the three seasons. Two of those are margin-shaped and would have been
+ * expected to inherit some signal; they do not, because half a match is half the
+ * goals and the noise swamps what little edge there is.
  */
 const HALF_SHAPED = { settlesOn: "halves", offered: true } as const;
 
@@ -886,12 +893,7 @@ export const MARKETS: Market[] = DEFINITIONS.map((definition) => ({
   ...definition,
   evidence: BEATS_BASE_RATE.has(definition.id)
     ? ("beats-base-rate" as const)
-    : // A half market has not been through the backtest at all, which is a
-      // different statement from having been through it and lost. Saying
-      // "no better" would be a claim nobody has checked.
-      definition.settlesOn === "halves"
-      ? ("unmeasured" as const)
-      : ("no-better-than-base-rate" as const),
+    : ("no-better-than-base-rate" as const),
 }));
 
 const BY_ID = new Map(MARKETS.map((m) => [m.id, m]));
