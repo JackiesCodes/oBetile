@@ -50,13 +50,19 @@ describe("every market adds up the way its shape implies", () => {
   const renormalised = (id: string) => id === "dnb" || id.startsWith("ah_");
   const doubleCovering = (id: string) => id === "double_chance" || id.startsWith("dc_");
   const overlapping = (id: string) => id === "multi_goals";
+  // Half-time/full-time and highest scoring half range over BOTH halves at
+  // once, so their mass is the product of two grids rather than one grid's.
+  const joint = (id: string) => id === "ht_ft" || id === "highest_scoring_half";
 
   it.each(MARKETS.map((m) => [m.id, m] as const))("%s covers the grid as expected", (id, m) => {
     if (overlapping(id)) return;
+    const mass = sumGrid(grid, () => true);
     const total = Object.values(priceMarket(m, grid)).reduce((a, b) => a + b, 0);
     const expected = renormalised(id)
       ? 1
-      : sumGrid(grid, () => true) * (doubleCovering(id) ? 2 : 1);
+      : joint(id)
+      ? mass * mass
+      : mass * (doubleCovering(id) ? 2 : 1);
     expect(total).toBeCloseTo(expected, 9);
   });
 
@@ -274,6 +280,85 @@ describe("combinations", () => {
     for (const id of ["result_btts", "result_ou_2_5", "btts_ou_2_5"]) {
       const total = Object.values(priceMarket(marketById(id)!, grid)).reduce((a, b) => a + b, 0);
       expect(total).toBeCloseTo(sumGrid(grid, () => true), 9);
+    }
+  });
+});
+
+describe("halves", () => {
+  /** A finished match with both a half-time and a full-time score. */
+  const withHalves = (h1: number, a1: number, h: number, a: number): SettlementFixture => ({
+    finished: true,
+    outcome: h > a ? "home" : h < a ? "away" : "draw",
+    goals90: { home: h, away: a },
+    goalsHt: { home: h1, away: a1 },
+  });
+
+  it("reads the first half straight off the half-time score", () => {
+    expect(settlePick("first_half_result", "home", withHalves(1, 0, 1, 1))).toBe("correct");
+    expect(settlePick("first_half_result", "draw", withHalves(0, 0, 3, 0))).toBe("correct");
+    expect(settlePick("first_half_result", "away", withHalves(0, 2, 2, 2))).toBe("correct");
+  });
+
+  it("derives the second half by subtraction, not by the final score", () => {
+    // 1-0 at the break, 1-3 at the end: the second half was 0-3 to the away
+    // side, even though the away side did not win the match outright at 1-3.
+    expect(settlePick("second_half_result", "away", withHalves(1, 0, 1, 3))).toBe("correct");
+    // 2-0 at the break, 2-2 at the end: second half 0-2, away.
+    expect(settlePick("second_half_result", "away", withHalves(2, 0, 2, 2))).toBe("correct");
+    expect(settlePick("second_half_result", "draw", withHalves(2, 0, 3, 1))).toBe("correct");
+  });
+
+  it("needs both ends of a half-time/full-time pick", () => {
+    // Behind at the break, winning at the end — the combination the market
+    // exists for.
+    expect(settlePick("ht_ft", "away_home", withHalves(0, 1, 2, 1))).toBe("correct");
+    expect(settlePick("ht_ft", "home_home", withHalves(0, 1, 2, 1))).toBe("wrong");
+    expect(settlePick("ht_ft", "away_away", withHalves(0, 1, 0, 1))).toBe("correct");
+    expect(settlePick("ht_ft", "draw_draw", withHalves(0, 0, 1, 1))).toBe("correct");
+  });
+
+  it("scopes both-teams-to-score to the half it names", () => {
+    // 1-1 at the break: yes in the first half. Nothing after: no in the second.
+    expect(settlePick("btts_1h", "yes", withHalves(1, 1, 1, 1))).toBe("correct");
+    expect(settlePick("btts_2h", "yes", withHalves(1, 1, 1, 1))).toBe("wrong");
+    expect(settlePick("btts_2h", "no", withHalves(1, 1, 1, 1))).toBe("correct");
+    // 0-0 at the break, 1-1 at the end: the reverse.
+    expect(settlePick("btts_1h", "yes", withHalves(0, 0, 1, 1))).toBe("wrong");
+    expect(settlePick("btts_2h", "yes", withHalves(0, 0, 1, 1))).toBe("correct");
+  });
+
+  it("counts goals per half for the highest scoring half", () => {
+    expect(settlePick("highest_scoring_half", "first", withHalves(2, 0, 2, 1))).toBe("correct");
+    expect(settlePick("highest_scoring_half", "second", withHalves(0, 0, 1, 1))).toBe("correct");
+    // 1-0 at the break is one goal; 2-0 at the end makes the second half one
+    // goal too.
+    expect(settlePick("highest_scoring_half", "equal", withHalves(1, 0, 2, 0))).toBe("correct");
+    expect(settlePick("highest_scoring_half", "equal", withHalves(0, 0, 0, 0))).toBe("correct");
+  });
+
+  it("stays pending when there is no half-time score", () => {
+    // Every fixture stored before 20 August 2026. Settling these off the final
+    // score would be inventing the one number the market is about.
+    const noHalf: SettlementFixture = {
+      finished: true,
+      outcome: "home",
+      goals90: { home: 2, away: 1 },
+    };
+    expect(settlePick("first_half_result", "home", noHalf)).toBeNull();
+    expect(settlePick("ht_ft", "home_home", noHalf)).toBeNull();
+    // The full-match markets are unaffected and settle as they always did.
+    expect(settlePick("btts", "yes", noHalf)).toBe("correct");
+  });
+
+  it("refuses a half-time score larger than the full-time one", () => {
+    // The provider contradicting itself. A negative second half would settle
+    // confidently and wrongly.
+    expect(settlePick("second_half_result", "home", withHalves(3, 0, 1, 0))).toBeNull();
+  });
+
+  it("is marked unmeasured rather than claiming either way", () => {
+    for (const m of MARKETS.filter((m) => m.settlesOn === "halves")) {
+      expect(m.evidence).toBe("unmeasured");
     }
   });
 });

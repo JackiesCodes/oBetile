@@ -438,6 +438,52 @@ function adjustedLambdas({
 }
 
 /**
+ * Share of a side's goals scored before half time.
+ *
+ * Measured, not assumed. Over the 1,140 fixtures of the 2025 Premier League,
+ * LaLiga and Serie A seasons that carry a half-time score, 43.78% of home goals
+ * and 41.94% of away goals arrived in the first half. The second half is the
+ * higher-scoring one and reliably so — tiring legs, chasing the game, and
+ * substitutes — which is why a flat half each would be wrong in a direction
+ * that matters for every half-based market.
+ */
+export const FIRST_HALF_SHARE_HOME = 0.4378;
+export const FIRST_HALF_SHARE_AWAY = 0.4194;
+
+export interface HalfGrids {
+  first: ScoreGrid;
+  second: ScoreGrid;
+}
+
+/**
+ * Scoreline distributions for each half separately.
+ *
+ * Each half gets its own Poisson from the same expected goals, split by the
+ * measured share above. Treating the halves as independent is an assumption
+ * rather than a fact — a side two down at the break plays the second half
+ * differently — and it is the assumption the half markets rest on, so they are
+ * unproven until the backtest says otherwise.
+ *
+ * Deliberately not fitted to anything. There is no published half-time
+ * percentage to reconcile with, and inventing a target to fit would dress an
+ * unmeasured number up as a reconciled one.
+ */
+export function halfGrids(lambdaHome: number, lambdaAway: number): HalfGrids {
+  return {
+    first: scoreGrid(lambdaHome * FIRST_HALF_SHARE_HOME, lambdaAway * FIRST_HALF_SHARE_AWAY),
+    second: scoreGrid(
+      lambdaHome * (1 - FIRST_HALF_SHARE_HOME),
+      lambdaAway * (1 - FIRST_HALF_SHARE_AWAY)
+    ),
+  };
+}
+
+/** Expected goals for a fixture, or null when the model declines it. */
+export function fixtureLambdas(input: PredictionInput): { home: number; away: number } | null {
+  return adjustedLambdas(input);
+}
+
+/**
  * The scoreline grid for a fixture, fitted to the published match outcomes.
  *
  * The source for every goal-derived market. Returns null on exactly the same

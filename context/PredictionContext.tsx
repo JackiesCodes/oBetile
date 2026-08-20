@@ -234,6 +234,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
             finished: r.finished,
             outcome: r.outcome,
             goals90: r.goals90,
+            goalsHt: r.goalsHt,
           });
           if (result) {
             settled.push({ fixtureId: p.fixtureId, slipId: slip.id, result });

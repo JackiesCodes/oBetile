@@ -35,15 +35,40 @@ export interface Score {
  * were scored and read the ninety-minute score, because extra time is not part
  * of what was predicted.
  */
-export type SettlesOn = "outcome" | "goals";
+export type SettlesOn = "outcome" | "goals" | "halves";
+
+/**
+ * Everything a market may price itself from.
+ *
+ * `full` is the fitted full-match grid. `first` and `second` are the two halves,
+ * built from the same expected goals split by the measured first-half share.
+ * A market takes what it needs and ignores the rest; passing one grid was
+ * enough until a market had to talk about both halves at once.
+ */
+export interface MarketContext {
+  full: ScoreGrid;
+  first: ScoreGrid;
+  second: ScoreGrid;
+}
+
+/** The two halves of a finished match, as scores in their own right. */
+export interface Halves {
+  first: Score;
+  second: Score;
+}
 
 export interface MarketChoice {
   id: string;
   label: string;
-  /** Probability of this choice, summed off a fitted scoreline grid. */
-  probability(grid: ScoreGrid): number;
-  /** Whether this choice came in. */
-  settle(score: Score, outcome: Outcome): PickResult;
+  /** Probability of this choice, summed off the fitted distributions. */
+  probability(ctx: MarketContext): number;
+  /**
+   * Whether this choice came in.
+   *
+   * `halves` is present only for markets that declared settlesOn "halves";
+   * settlePick refuses to call them without it rather than passing a guess.
+   */
+  settle(score: Score, outcome: Outcome, halves?: Halves): PickResult;
 }
 
 export interface Market {
@@ -120,7 +145,7 @@ const MATCH_RESULT: MarketDefinition = {
   choices: (["home", "draw", "away"] as const).map((side) => ({
     id: side,
     label: side === "home" ? "Home" : side === "away" ? "Away" : "Draw",
-    probability: (grid) => sumGrid(grid, (h, a) => resultOf(h, a) === side),
+    probability: (ctx) => sumGrid(ctx.full, (h, a) => resultOf(h, a) === side),
     settle: (_score, outcome) => hit(outcome === side),
   })),
 };
@@ -140,8 +165,8 @@ const DOUBLE_CHANCE: MarketDefinition = {
   ).map(({ id, label, sides }) => ({
     id,
     label,
-    probability: (grid: ScoreGrid) =>
-      sumGrid(grid, (h, a) => (sides as readonly Outcome[]).includes(resultOf(h, a))),
+    probability: (ctx: MarketContext) =>
+      sumGrid(ctx.full, (h, a) => (sides as readonly Outcome[]).includes(resultOf(h, a))),
     settle: (_score: Score, outcome: Outcome) =>
       hit((sides as readonly Outcome[]).includes(outcome)),
   })),
@@ -164,10 +189,10 @@ const DRAW_NO_BET: MarketDefinition = {
     // assuming it sums to one silently misprices this market by whatever that
     // tail was worth. predictGrid normalises, but this must not depend on the
     // caller having done so.
-    probability: (grid: ScoreGrid) => {
-      const win = sumGrid(grid, (h, a) => resultOf(h, a) === side);
-      const draw = sumGrid(grid, (h, a) => h === a);
-      const decisive = sumGrid(grid, () => true) - draw;
+    probability: (ctx: MarketContext) => {
+      const win = sumGrid(ctx.full, (h, a) => resultOf(h, a) === side);
+      const draw = sumGrid(ctx.full, (h, a) => h === a);
+      const decisive = sumGrid(ctx.full, () => true) - draw;
       return decisive > 0 ? win / decisive : 0;
     },
     settle: (_score: Score, outcome: Outcome): PickResult =>
@@ -188,13 +213,13 @@ const BTTS: MarketDefinition = {
     {
       id: "yes",
       label: "Yes",
-      probability: (grid) => sumGrid(grid, (h, a) => h > 0 && a > 0),
+      probability: (ctx) => sumGrid(ctx.full, (h, a) => h > 0 && a > 0),
       settle: ({ home, away }) => hit(home > 0 && away > 0),
     },
     {
       id: "no",
       label: "No",
-      probability: (grid) => sumGrid(grid, (h, a) => h === 0 || a === 0),
+      probability: (ctx) => sumGrid(ctx.full, (h, a) => h === 0 || a === 0),
       settle: ({ home, away }) => hit(home === 0 || away === 0),
     },
   ],
@@ -228,13 +253,13 @@ function overUnder(line: number): MarketDefinition {
       {
         id: "over",
         label: `Over ${shown}`,
-        probability: (grid) => sumGrid(grid, (h, a) => h + a > line),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => h + a > line),
         settle: ({ home, away }) => hit(home + away > line),
       },
       {
         id: "under",
         label: `Under ${shown}`,
-        probability: (grid) => sumGrid(grid, (h, a) => h + a < line),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => h + a < line),
         settle: ({ home, away }) => hit(home + away < line),
       },
     ],
@@ -254,14 +279,14 @@ const ODD_EVEN: MarketDefinition = {
     {
       id: "odd",
       label: "Odd",
-      probability: (grid) => sumGrid(grid, (h, a) => (h + a) % 2 === 1),
+      probability: (ctx) => sumGrid(ctx.full, (h, a) => (h + a) % 2 === 1),
       settle: ({ home, away }) => hit((home + away) % 2 === 1),
     },
     {
       id: "even",
       // 0-0 is even, which surprises people often enough to be worth saying.
       label: "Even",
-      probability: (grid) => sumGrid(grid, (h, a) => (h + a) % 2 === 0),
+      probability: (ctx) => sumGrid(ctx.full, (h, a) => (h + a) % 2 === 0),
       settle: ({ home, away }) => hit((home + away) % 2 === 0),
     },
   ],
@@ -293,7 +318,7 @@ const EXACT_GOALS: MarketDefinition = {
     return {
       id: open ? "6plus" : String(n),
       label: open ? "6 or more" : String(n),
-      probability: (grid: ScoreGrid) => sumGrid(grid, (h, a) => matches(h + a)),
+      probability: (ctx: MarketContext) => sumGrid(ctx.full, (h, a) => matches(h + a)),
       settle: ({ home, away }: Score) => hit(matches(home + away)),
     };
   }),
@@ -305,7 +330,7 @@ function band(id: string, label: string, lo: number, hi: number) {
   return {
     id,
     label,
-    probability: (grid: ScoreGrid) => sumGrid(grid, (h, a) => matches(h + a)),
+    probability: (ctx: MarketContext) => sumGrid(ctx.full, (h, a) => matches(h + a)),
     settle: ({ home, away }: Score) => hit(matches(home + away)),
   };
 }
@@ -355,14 +380,14 @@ const CORRECT_SCORE: MarketDefinition = {
       [0, 1, 2, 3].map((a) => ({
         id: `${h}_${a}`,
         label: `${h}–${a}`,
-        probability: (grid: ScoreGrid) => sumGrid(grid, (i, j) => i === h && j === a),
+        probability: (ctx: MarketContext) => sumGrid(ctx.full, (i, j) => i === h && j === a),
         settle: ({ home, away }: Score) => hit(home === h && away === a),
       }))
     ),
     {
       id: "other",
       label: "Any other score",
-      probability: (grid: ScoreGrid) => sumGrid(grid, (i, j) => i > 3 || j > 3),
+      probability: (ctx: MarketContext) => sumGrid(ctx.full, (i, j) => i > 3 || j > 3),
       settle: ({ home, away }: Score) => hit(home > 3 || away > 3),
     },
   ],
@@ -385,13 +410,13 @@ function teamTotal(side: "home" | "away", line: number): MarketDefinition {
       {
         id: "over",
         label: `Over ${shown}`,
-        probability: (grid) => sumGrid(grid, (h, a) => goalsOf(side, h, a) > line),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => goalsOf(side, h, a) > line),
         settle: ({ home, away }) => hit(goalsOf(side, home, away) > line),
       },
       {
         id: "under",
         label: `Under ${shown}`,
-        probability: (grid) => sumGrid(grid, (h, a) => goalsOf(side, h, a) < line),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => goalsOf(side, h, a) < line),
         settle: ({ home, away }) => hit(goalsOf(side, home, away) < line),
       },
     ],
@@ -410,13 +435,13 @@ function cleanSheet(side: "home" | "away"): MarketDefinition {
       {
         id: "yes",
         label: "Yes",
-        probability: (grid) => sumGrid(grid, (h, a) => conceded(h, a) === 0),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => conceded(h, a) === 0),
         settle: ({ home, away }) => hit(conceded(home, away) === 0),
       },
       {
         id: "no",
         label: "No",
-        probability: (grid) => sumGrid(grid, (h, a) => conceded(h, a) > 0),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => conceded(h, a) > 0),
         settle: ({ home, away }) => hit(conceded(home, away) > 0),
       },
     ],
@@ -436,13 +461,13 @@ function winToNil(side: "home" | "away"): MarketDefinition {
       {
         id: "yes",
         label: "Yes",
-        probability: (grid) => sumGrid(grid, (h, a) => won(h, a) && nil(h, a)),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => won(h, a) && nil(h, a)),
         settle: ({ home, away }) => hit(won(home, away) && nil(home, away)),
       },
       {
         id: "no",
         label: "No",
-        probability: (grid) => sumGrid(grid, (h, a) => !(won(h, a) && nil(h, a))),
+        probability: (ctx) => sumGrid(ctx.full, (h, a) => !(won(h, a) && nil(h, a))),
         settle: ({ home, away }) => hit(!(won(home, away) && nil(home, away))),
       },
     ],
@@ -469,7 +494,7 @@ function europeanHandicap(line: number): MarketDefinition {
     choices: (["home", "draw", "away"] as const).map((side) => ({
       id: side,
       label: side === "home" ? "Home" : side === "away" ? "Away" : "Draw",
-      probability: (grid: ScoreGrid) => sumGrid(grid, (h, a) => adjusted(h, a) === side),
+      probability: (ctx: MarketContext) => sumGrid(ctx.full, (h, a) => adjusted(h, a) === side),
       settle: ({ home, away }: Score) => hit(adjusted(home, away) === side),
     })),
   };
@@ -491,10 +516,10 @@ function asianHandicap(line: number): MarketDefinition {
   const forSide = (side: "home" | "away") => ({
     id: side,
     label: `${sideName(side)} ${sign}`,
-    probability: (grid: ScoreGrid) => {
-      const win = sumGrid(grid, (h, a) => (side === "home" ? margin(h, a) > 0 : margin(h, a) < 0));
-      const push = sumGrid(grid, (h, a) => margin(h, a) === 0);
-      const decided = sumGrid(grid, () => true) - push;
+    probability: (ctx: MarketContext) => {
+      const win = sumGrid(ctx.full, (h, a) => (side === "home" ? margin(h, a) > 0 : margin(h, a) < 0));
+      const push = sumGrid(ctx.full, (h, a) => margin(h, a) === 0);
+      const decided = sumGrid(ctx.full, () => true) - push;
       return decided > 0 ? win / decided : 0;
     },
     settle: ({ home, away }: Score): PickResult => {
@@ -536,7 +561,7 @@ function combo(
     choices: parts.map((p) => ({
       id: p.id,
       label: p.label,
-      probability: (grid: ScoreGrid) => sumGrid(grid, p.test),
+      probability: (ctx: MarketContext) => sumGrid(ctx.full, p.test),
       settle: ({ home, away }: Score) => hit(p.test(home, away)),
     })),
   };
@@ -604,6 +629,193 @@ const DOUBLE_CHANCE_OVER_UNDER = combo(
   )
 );
 
+/* ── Halves ────────────────────────────────────────────────────── */
+
+/**
+ * Markets about one half or both.
+ *
+ * These rest on two things the full-match markets do not. The halves are split
+ * by a measured share rather than evenly — the second half really is the higher
+ * scoring one — and they are then treated as independent, which is an
+ * assumption and a slightly false one: a side two down at the break plays the
+ * second half differently from a side level. Unmeasured until the backtest
+ * scores them.
+ *
+ * They settle on the half-time score, which fixture_results has only carried
+ * since 20 August 2026. Anything older settles to nothing rather than guessing.
+ */
+const HALF_SHAPED = { settlesOn: "halves", offered: true } as const;
+
+const goalsIn = (s: Score) => s.home + s.away;
+
+/** Joint probability over (first-half scoreline, second-half scoreline). */
+function sumHalves(
+  ctx: MarketContext,
+  keep: (h1: number, a1: number, h2: number, a2: number) => boolean
+): number {
+  let total = 0;
+  for (let i = 0; i < ctx.first.length; i++) {
+    for (let j = 0; j < ctx.first[i].length; j++) {
+      const pFirst = ctx.first[i][j];
+      if (pFirst <= 0) continue;
+      for (let k = 0; k < ctx.second.length; k++) {
+        for (let l = 0; l < ctx.second[k].length; l++) {
+          if (keep(i, j, k, l)) total += pFirst * ctx.second[k][l];
+        }
+      }
+    }
+  }
+  return total;
+}
+
+const FIRST_HALF_RESULT: MarketDefinition = {
+  id: "first_half_result",
+  label: "First Half Result",
+  description: "Who leads at half time",
+  ...HALF_SHAPED,
+  choices: (["home", "draw", "away"] as const).map((side) => ({
+    id: side,
+    label: side === "home" ? "Home" : side === "away" ? "Away" : "Draw",
+    probability: (ctx: MarketContext) => sumGrid(ctx.first, (h, a) => resultOf(h, a) === side),
+    settle: (_score: Score, _outcome: Outcome, halves?: Halves) =>
+      hit(!!halves && resultOf(halves.first.home, halves.first.away) === side),
+  })),
+};
+
+const SECOND_HALF_RESULT: MarketDefinition = {
+  id: "second_half_result",
+  label: "Second Half Result",
+  description: "Who wins the second half, with the score reset at the break",
+  ...HALF_SHAPED,
+  choices: (["home", "draw", "away"] as const).map((side) => ({
+    id: side,
+    label: side === "home" ? "Home" : side === "away" ? "Away" : "Draw",
+    probability: (ctx: MarketContext) => sumGrid(ctx.second, (h, a) => resultOf(h, a) === side),
+    settle: (_score: Score, _outcome: Outcome, halves?: Halves) =>
+      hit(!!halves && resultOf(halves.second.home, halves.second.away) === side),
+  })),
+};
+
+/**
+ * Half time and full time together.
+ *
+ * Nine combinations, and the reason it needs the joint distribution rather than
+ * two separate ones: full time is the two halves added, so "draw at the break,
+ * home win at the end" is a statement about both at once.
+ */
+const HT_FT: MarketDefinition = {
+  id: "ht_ft",
+  label: "Half Time / Full Time",
+  description: "The result at the break and at the end",
+  ...HALF_SHAPED,
+  choices: (["home", "draw", "away"] as const).flatMap((half) =>
+    (["home", "draw", "away"] as const).map((full) => ({
+      id: `${half}_${full}`,
+      label: `${half === "draw" ? "Draw" : sideName(half)} / ${full === "draw" ? "Draw" : sideName(full)}`,
+      probability: (ctx: MarketContext) =>
+        sumHalves(
+          ctx,
+          (h1, a1, h2, a2) =>
+            resultOf(h1, a1) === half && resultOf(h1 + h2, a1 + a2) === full
+        ),
+      settle: (score: Score, _outcome: Outcome, halves?: Halves) =>
+        hit(
+          !!halves &&
+            resultOf(halves.first.home, halves.first.away) === half &&
+            resultOf(score.home, score.away) === full
+        ),
+    }))
+  ),
+};
+
+const BTTS_FIRST_HALF: MarketDefinition = {
+  id: "btts_1h",
+  label: "Both Teams to Score — 1st Half",
+  description: "Both sides score before the break",
+  ...HALF_SHAPED,
+  choices: [
+    {
+      id: "yes",
+      label: "Yes",
+      probability: (ctx: MarketContext) => sumGrid(ctx.first, (h, a) => h > 0 && a > 0),
+      settle: (_s: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && halves.first.home > 0 && halves.first.away > 0),
+    },
+    {
+      id: "no",
+      label: "No",
+      probability: (ctx: MarketContext) => sumGrid(ctx.first, (h, a) => h === 0 || a === 0),
+      settle: (_s: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && (halves.first.home === 0 || halves.first.away === 0)),
+    },
+  ],
+};
+
+const BTTS_SECOND_HALF: MarketDefinition = {
+  id: "btts_2h",
+  label: "Both Teams to Score — 2nd Half",
+  description: "Both sides score after the break",
+  ...HALF_SHAPED,
+  choices: [
+    {
+      id: "yes",
+      label: "Yes",
+      probability: (ctx: MarketContext) => sumGrid(ctx.second, (h, a) => h > 0 && a > 0),
+      settle: (_s: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && halves.second.home > 0 && halves.second.away > 0),
+    },
+    {
+      id: "no",
+      label: "No",
+      probability: (ctx: MarketContext) => sumGrid(ctx.second, (h, a) => h === 0 || a === 0),
+      settle: (_s: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && (halves.second.home === 0 || halves.second.away === 0)),
+    },
+  ],
+};
+
+const HIGHEST_SCORING_HALF: MarketDefinition = {
+  id: "highest_scoring_half",
+  label: "Highest Scoring Half",
+  description: "Which half produced more goals",
+  ...HALF_SHAPED,
+  choices: [
+    {
+      id: "first",
+      label: "1st Half",
+      probability: (ctx: MarketContext) =>
+        sumHalves(ctx, (h1, a1, h2, a2) => h1 + a1 > h2 + a2),
+      settle: (_s: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && goalsIn(halves.first) > goalsIn(halves.second)),
+    },
+    {
+      id: "equal",
+      label: "Equal",
+      probability: (ctx: MarketContext) =>
+        sumHalves(ctx, (h1, a1, h2, a2) => h1 + a1 === h2 + a2),
+      settle: (_s: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && goalsIn(halves.first) === goalsIn(halves.second)),
+    },
+    {
+      id: "second",
+      label: "2nd Half",
+      probability: (ctx: MarketContext) =>
+        sumHalves(ctx, (h1, a1, h2, a2) => h1 + a1 < h2 + a2),
+      settle: (_s: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && goalsIn(halves.first) < goalsIn(halves.second)),
+    },
+  ],
+};
+
+const HALF_MARKETS = [
+  FIRST_HALF_RESULT,
+  SECOND_HALF_RESULT,
+  HT_FT,
+  BTTS_FIRST_HALF,
+  BTTS_SECOND_HALF,
+  HIGHEST_SCORING_HALF,
+];
+
 const DEFINITIONS: MarketDefinition[] = [
   MATCH_RESULT,
   DOUBLE_CHANCE,
@@ -626,6 +838,7 @@ const DEFINITIONS: MarketDefinition[] = [
   RESULT_OVER_UNDER,
   BTTS_OVER_UNDER,
   DOUBLE_CHANCE_OVER_UNDER,
+  ...HALF_MARKETS,
 ];
 
 /**
@@ -673,7 +886,12 @@ export const MARKETS: Market[] = DEFINITIONS.map((definition) => ({
   ...definition,
   evidence: BEATS_BASE_RATE.has(definition.id)
     ? ("beats-base-rate" as const)
-    : ("no-better-than-base-rate" as const),
+    : // A half market has not been through the backtest at all, which is a
+      // different statement from having been through it and lost. Saying
+      // "no better" would be a claim nobody has checked.
+      definition.settlesOn === "halves"
+      ? ("unmeasured" as const)
+      : ("no-better-than-base-rate" as const),
 }));
 
 const BY_ID = new Map(MARKETS.map((m) => [m.id, m]));
@@ -745,8 +963,13 @@ export function selectionLabel(
 }
 
 /** Every choice in a market, priced off one grid. */
-export function priceMarket(market: Market, grid: ScoreGrid): Record<string, number> {
-  return Object.fromEntries(market.choices.map((c) => [c.id, c.probability(grid)]));
+export function priceMarket(market: Market, ctx: MarketContext | ScoreGrid): Record<string, number> {
+  // A bare grid is accepted and read as the full-match one, so the many callers
+  // that have no interest in halves stay unchanged.
+  const context: MarketContext = Array.isArray(ctx)
+    ? { full: ctx, first: ctx, second: ctx }
+    : ctx;
+  return Object.fromEntries(market.choices.map((c) => [c.id, c.probability(context)]));
 }
 
 /**
@@ -817,6 +1040,14 @@ export interface SettlementFixture {
    * would throw rather than degrade.
    */
   goals90?: { home: number | null; away: number | null } | null;
+  /**
+   * Score at half time, for the markets about halves.
+   *
+   * fixture_results has only carried this since 20 August 2026, so it is absent
+   * for every fixture stored before then, and those picks stay pending rather
+   * than being settled against a half-time score nobody recorded.
+   */
+  goalsHt?: { home: number | null; away: number | null } | null;
 }
 
 export function settlePick(
@@ -840,5 +1071,25 @@ export function settlePick(
   const home = fixture.goals90?.home;
   const away = fixture.goals90?.away;
   if (typeof home !== "number" || typeof away !== "number") return null;
-  return choice.settle({ home, away }, resultOf(home, away));
+
+  const score = { home, away };
+  if (market.settlesOn === "goals") return choice.settle(score, resultOf(home, away));
+
+  // A half market needs the half-time score as well, and the second half is
+  // what is left once the first is taken off the full-time score. No half-time
+  // score means no answer — settling these off the full-time score alone would
+  // be inventing the very thing they are about.
+  const htHome = fixture.goalsHt?.home;
+  const htAway = fixture.goalsHt?.away;
+  if (typeof htHome !== "number" || typeof htAway !== "number") return null;
+
+  const halves: Halves = {
+    first: { home: htHome, away: htAway },
+    second: { home: home - htHome, away: away - htAway },
+  };
+  // A half-time score above the full-time one is the provider contradicting
+  // itself. Refuse rather than settle from a negative second half.
+  if (halves.second.home < 0 || halves.second.away < 0) return null;
+
+  return choice.settle(score, resultOf(home, away), halves);
 }

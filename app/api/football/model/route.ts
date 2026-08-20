@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetch, resolveSeason } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import { normaliseToFairOdds } from "@/lib/odds";
-import { predictFixture, predictGrid, type TeamRecord, type HeadToHead } from "@/lib/model";
+import {
+  fixtureLambdas,
+  halfGrids,
+  predictFixture,
+  predictGrid,
+  type TeamRecord,
+  type HeadToHead,
+} from "@/lib/model";
 import { OFFERED_MARKETS, priceMarket } from "@/lib/markets";
 import type { APIFixture } from "@/types";
 
@@ -222,9 +229,16 @@ export async function GET(req: NextRequest) {
        * the other way up: 1/odds is the probability.
        */
       const grid = predictGrid({ home, away, table, h2h });
-      const markets = grid
-        ? Object.fromEntries(OFFERED_MARKETS.map((m) => [m.id, priceMarket(m, grid)]))
-        : undefined;
+      const lambdas = fixtureLambdas({ home, away, table });
+      const markets =
+        grid && lambdas
+          ? Object.fromEntries(
+              OFFERED_MARKETS.map((m) => [
+                m.id,
+                priceMarket(m, { full: grid, ...halfGrids(lambdas.home, lambdas.away) }),
+              ])
+            )
+          : undefined;
 
       result[String(f.fixture.id)] = markets ? { ...fair, markets } : fair;
     }

@@ -79,7 +79,8 @@ export default function MatchDerivedMarkets({
   // a second place to tap the same prediction.
   const markets = OFFERED_MARKETS.filter((m) => m.id !== "1x2");
   const measured = markets.filter((m) => m.evidence === "beats-base-rate");
-  const unmeasured = markets.filter((m) => m.evidence !== "beats-base-rate");
+  const weak = markets.filter((m) => m.evidence === "no-better-than-base-rate");
+  const unmeasured = markets.filter((m) => m.evidence === "unmeasured");
 
   if (loading) {
     return (
@@ -211,6 +212,22 @@ export default function MatchDerivedMarkets({
             seasons found their percentages no more accurate than simply quoting how often the
             outcome happens in general. The model knows the gap between two sides, not how many
             goals they will combine for. Treat the numbers as decoration, not information.
+          </p>
+          <div className="space-y-4">{weak.map(renderMarket)}</div>
+        </details>
+      )}
+
+      {unmeasured.length > 0 && (
+        <details className="border-t border-brand-dark-5 pt-3">
+          <summary className="cursor-pointer text-xs font-semibold text-gray-300 hover:text-white">
+            Half markets ({unmeasured.length}) — not yet measured
+          </summary>
+          <p className="text-[10px] text-gray-500 leading-relaxed mt-2 mb-3">
+            Each half is modelled from the same expected goals, split by the share actually
+            observed — 43% of goals arrive before the break, not half — and the two halves are
+            then treated as independent, which a match two goals down at half time plainly is
+            not. These have not been through the backtest yet, so unlike the markets above there
+            is no claim here either way about how accurate the percentages are.
           </p>
           <div className="space-y-4">{unmeasured.map(renderMarket)}</div>
         </details>
