@@ -9,9 +9,11 @@ interface Props {
 }
 
 export default function PremiumGate({ children }: Props) {
-  const { isPro } = useSubscription();
+  const { isPro, everythingIsFree } = useSubscription();
 
-  if (isPro) return <>{children}</>;
+  // Open while the platform is in development. The gate stays in the tree so
+  // that turning charging on later is one constant rather than a rebuild.
+  if (everythingIsFree || isPro) return <>{children}</>;
 
   return (
     <div className="relative rounded-xl overflow-hidden">

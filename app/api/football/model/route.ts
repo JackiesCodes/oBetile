@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiFetch, resolveSeason } from "@/lib/api-football";
 import { apiErrorResponse } from "@/lib/api-error";
 import { normaliseToFairOdds } from "@/lib/odds";
-import { predictFixture, type TeamRecord, type HeadToHead } from "@/lib/model";
+import { fitToOutcomes, predictFixture, predictGrid, type TeamRecord, type HeadToHead } from "@/lib/model";
+import { OFFERED_MARKETS, priceMarket } from "@/lib/markets";
 import type { APIFixture } from "@/types";
 
 /**
@@ -161,7 +162,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const result: Record<string, { home: number; draw: number; away: number }> = {};
+    /**
+     * Market prices are computed here, not in the browser.
+     *
+     * Everything beyond the match result needs the scoreline grid, and the grid
+     * needs the league table — several hundred numbers the client has no reason
+     * to hold. Only the single-fixture form carries them: pricing forty markets
+     * for every row of a twenty-fixture feed would be a large response nobody
+     * reads.
+     */
+    const result: Record<
+      string,
+      { home: number; draw: number; away: number; markets?: Record<string, Record<string, number>> }
+    > = {};
     let considered = 0;
 
     for (const f of fixtures) {
@@ -188,7 +201,35 @@ export async function GET(req: NextRequest) {
         draw: probabilities.draw * 100,
         away: probabilities.away * 100,
       });
-      if (fair) result[String(f.fixture.id)] = fair;
+      if (!fair) continue;
+
+      if (!single) {
+        result[String(f.fixture.id)] = fair;
+        continue;
+      }
+
+      // Refitted to the figures actually published rather than to the model's
+      // raw output: normaliseToFairOdds is the last thing to touch them, and a
+      // market read off an unfitted grid would disagree with the percentage
+      // printed beside it.
+      const grid = predictGrid({ home, away, table, h2h });
+      const markets = grid
+        ? Object.fromEntries(
+            OFFERED_MARKETS.map((m) => [
+              m.id,
+              priceMarket(
+                m,
+                fitToOutcomes(grid, {
+                  home: fair.home / 100,
+                  draw: fair.draw / 100,
+                  away: fair.away / 100,
+                })
+              ),
+            ])
+          )
+        : undefined;
+
+      result[String(f.fixture.id)] = markets ? { ...fair, markets } : fair;
     }
 
     return NextResponse.json(result, {

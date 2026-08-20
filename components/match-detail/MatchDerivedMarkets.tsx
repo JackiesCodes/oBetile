@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { usePredictions } from "@/context/PredictionContext";
-import { OFFERED_MARKETS, priceFromOutcomes, selectionLabel } from "@/lib/markets";
+import { OFFERED_MARKETS, selectionLabel } from "@/lib/markets";
 import { isPickable, MAX_SELECTIONS } from "@/lib/slips";
 
 /**
@@ -22,8 +22,10 @@ import { isPickable, MAX_SELECTIONS } from "@/lib/slips";
  * for. That is what the model is. It pins the difference between two
  * expected-goal figures and leaves their sum to the league average.
  *
- * All of them price off the published 1X2 alone — no scoreline grid, no second
- * model call — so none can drift from the match result shown elsewhere.
+ * Prices come from the model route, computed there rather than here: every
+ * market beyond the match result needs the scoreline grid, and the grid needs
+ * the league table. The route fits that grid to the same three percentages it
+ * publishes, so no market can drift from the match result shown beside it.
  */
 
 interface Props {
@@ -35,7 +37,13 @@ interface Props {
 }
 
 interface ModelResponse {
-  [fixtureId: string]: { home: number; draw: number; away: number };
+  [fixtureId: string]: {
+    home: number;
+    draw: number;
+    away: number;
+    /** Every offered market, priced server-side off the fitted scoreline grid. */
+    markets?: Record<string, Record<string, number>>;
+  };
 }
 
 export default function MatchDerivedMarkets({
@@ -46,7 +54,7 @@ export default function MatchDerivedMarkets({
   status,
 }: Props) {
   const { select, deselect, isSelected, isStaged, canStage } = usePredictions();
-  const [outcomes, setOutcomes] = useState<{ home: number; draw: number; away: number } | null>(null);
+  const [priced, setPriced] = useState<Record<string, Record<string, number>> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,10 +62,10 @@ export default function MatchDerivedMarkets({
     fetch(`/api/football/model?fixture=${fixtureId}`)
       .then((r) => (r.ok ? r.json() : {}))
       .then((data: ModelResponse) => {
-        if (!cancelled) setOutcomes(data?.[String(fixtureId)] ?? null);
+        if (!cancelled) setPriced(data?.[String(fixtureId)]?.markets ?? null);
       })
       .catch(() => {
-        if (!cancelled) setOutcomes(null);
+        if (!cancelled) setPriced(null);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -92,16 +100,16 @@ export default function MatchDerivedMarkets({
 
   // The model declines a fixture it has too little history for, and says so by
   // returning nothing. Showing empty tiles would imply a number is coming.
-  if (!outcomes) return null;
+  if (!priced) return null;
 
   const over = !isPickable({ status, kickoff });
   // Captured once the guard above has run: the narrowing does not reach inside
-  // a closure, and every market prices off the same three numbers anyway.
-  const published = outcomes;
+  // a closure.
+  const prices = priced;
 
   function renderMarket(market: (typeof markets)[number]) {
-          const priced = priceFromOutcomes(market, published);
-          if (!priced) return null;
+          const marketPrices = prices[market.id];
+          if (!marketPrices) return null;
 
           return (
             <div key={market.id}>
@@ -112,7 +120,7 @@ export default function MatchDerivedMarkets({
 
               <div className="flex gap-2">
                 {market.choices.map((choice) => {
-                  const pct = Math.round(priced[choice.id] * 100);
+                  const pct = Math.round((marketPrices[choice.id] ?? 0) * 100);
                   const selected = isSelected(String(fixtureId), choice.id);
                   // One selection per fixture, so a second market on the same
                   // match replaces the first rather than adding to it. The size

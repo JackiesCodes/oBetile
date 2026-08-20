@@ -459,6 +459,44 @@ describe("pricing from the published 1X2 alone", () => {
   });
 });
 
+describe("every offered market can actually be priced", () => {
+  const team = (gf: number, ga: number): TeamRecord => ({
+    teamId: Math.round(gf * 100 + ga),
+    home: { played: 10, goalsFor: gf * 10, goalsAgainst: ga * 10 },
+    away: { played: 10, goalsFor: gf * 8, goalsAgainst: ga * 12 },
+    form: null,
+  });
+  const table = [team(1.8, 0.9), team(1.5, 1.1), team(1.2, 1.4), team(0.9, 1.8)];
+  const fixtureGrid = predictGrid({ home: team(1.9, 0.8), away: team(1.0, 1.5), table })!;
+
+  it("returns a number for every choice of every offered market", () => {
+    // The gap this closes: markets were offered, tested and correct, and still
+    // rendered nothing, because the panel priced them through a path that only
+    // handles result-shaped markets and returned null for the other 37. Every
+    // unit test passed throughout. Offering a market and being able to price it
+    // are separate facts and both need asserting.
+    for (const market of OFFERED_MARKETS) {
+      const priced = priceMarket(market, fixtureGrid);
+      for (const choice of market.choices) {
+        const p = priced[choice.id];
+        expect(typeof p, `${market.id}:${choice.id}`).toBe("number");
+        expect(Number.isFinite(p), `${market.id}:${choice.id}`).toBe(true);
+        expect(p, `${market.id}:${choice.id}`).toBeGreaterThanOrEqual(0);
+        expect(p, `${market.id}:${choice.id}`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("prices something other than zero for every market", () => {
+    // A market whose every choice prices at zero renders as a row of 0% tiles,
+    // which looks like a rendering fault rather than a prediction.
+    for (const market of OFFERED_MARKETS) {
+      const total = Object.values(priceMarket(market, fixtureGrid)).reduce((a, b) => a + b, 0);
+      expect(total, market.id).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("pricing off a real fixture", () => {
   const team = (gf: number, ga: number): TeamRecord => ({
     teamId: Math.round(gf * 100 + ga),
