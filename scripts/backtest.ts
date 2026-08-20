@@ -17,7 +17,8 @@
  */
 
 import { readFileSync } from "fs";
-import { predictFixture, type TeamRecord, type Probabilities } from "@/lib/model";
+import { predictFixture, predictGrid, type TeamRecord, type Probabilities } from "@/lib/model";
+import { MARKETS, priceMarket, settlePick } from "@/lib/markets";
 
 interface Row {
   id: number;
@@ -133,6 +134,115 @@ function calibration(scored: Scored[]) {
   }
 }
 
+/* ── Per-market scoring ─────────────────────────────────────────── */
+
+/** One priced choice, and whether it came in. */
+interface MarketScored {
+  market: string;
+  choice: string;
+  p: number;
+  hit: number;
+}
+
+/**
+ * What each market is worth, measured the same way the 1X2 model was.
+ *
+ * The temperature that flattens the published percentages was fitted against
+ * match outcomes. Nothing has shown it is the right correction for goal totals,
+ * so a market derived from the same grid can be perfectly consistent with a
+ * calibrated 1X2 and still be badly calibrated itself. This is the check that
+ * decides whether a market is fit to offer.
+ *
+ * Brier is the binary equivalent of the RPS used above: mean squared error
+ * between the stated probability and what happened. Lower is better. The bar
+ * that matters is the gap column — of the fixtures called at X%, did X% of them
+ * come in.
+ */
+function summariseMarkets(scored: MarketScored[]) {
+  const groups = new Map<string, MarketScored[]>();
+  for (const s of scored) {
+    const key = `${s.market}:${s.choice}`;
+    groups.set(key, [...(groups.get(key) ?? []), s]);
+  }
+
+  console.log("\n=== markets ===");
+  console.log("  market/choice           n      said   happened     gap    brier    skill");
+
+  for (const [key, rows] of [...groups.entries()].sort()) {
+    const n = rows.length;
+    const said = rows.reduce((s, x) => s + x.p, 0) / n;
+    const happened = rows.reduce((s, x) => s + x.hit, 0) / n;
+    const brier = rows.reduce((s, x) => s + (x.p - x.hit) ** 2, 0) / n;
+    const gap = happened - said;
+
+    /*
+     * Skill against the only bar that matters.
+     *
+     * The reference is quoting this market's own base rate for every fixture —
+     * a model that has learned nothing about the match in front of it. For a
+     * binary outcome that scores p(1-p), so skill is how much of that error the
+     * model removes. Positive means it knows something; zero means it may as
+     * well print the season average; negative means the fixture-specific
+     * numbers are actively worse than saying nothing.
+     *
+     * This is the number that decides whether a market is worth offering. A gap
+     * can be corrected by recalibrating. Missing skill cannot be corrected at
+     * all, because there is nothing there to correct.
+     */
+    const brierBase = happened * (1 - happened);
+    const skill = brierBase > 0 ? 1 - brier / brierBase : 0;
+
+    const flag =
+      skill <= 0
+        ? "  <-- NO SKILL"
+        : Math.abs(gap) > 0.05
+        ? "  <-- BAD"
+        : Math.abs(gap) > 0.02
+        ? "  <-- off"
+        : "";
+    console.log(
+      `  ${key.padEnd(22)} ${String(n).padStart(4)}  ${(said * 100).toFixed(1).padStart(6)}%  ${(happened * 100).toFixed(1).padStart(8)}%  ${(gap * 100).toFixed(1).padStart(6)}   ${brier.toFixed(4)}  ${(skill * 100).toFixed(1).padStart(6)}%${flag}`
+    );
+  }
+}
+
+/**
+ * Banded calibration for one side of one market.
+ *
+ * One side, not both. The two choices of a two-way market are complements —
+ * p(under) is 1 - p(over) and it comes in exactly when over does not — so
+ * pooling them counts every fixture twice and forces the table into a perfect
+ * mirror about 50%. That looks like a finding and is an artefact.
+ */
+function marketCalibration(scored: MarketScored[], market: string, choice: string) {
+  const rows = scored.filter((s) => s.market === market && s.choice === choice);
+  if (rows.length === 0) return;
+
+  const edges = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.01];
+  const buckets = edges.slice(0, -1).map(() => ({ n: 0, said: 0, hit: 0 }));
+
+  for (const r of rows) {
+    const b = edges.findIndex((e, i) => r.p >= e && r.p < edges[i + 1]);
+    if (b < 0) continue;
+    buckets[b].n++;
+    buckets[b].said += r.p;
+    buckets[b].hit += r.hit;
+  }
+
+  console.log(`\n  ${market}:${choice} by band`);
+  console.log("  band        n     said    happened   gap");
+  for (let i = 0; i < buckets.length; i++) {
+    const b = buckets[i];
+    if (b.n === 0) continue;
+    const said = b.said / b.n;
+    const happened = b.hit / b.n;
+    const flag = Math.abs(said - happened) > 0.05 ? "  <-- off" : "";
+    console.log(
+      `  ${(edges[i] * 100).toFixed(0).padStart(2)}-${(Math.min(edges[i + 1], 1) * 100).toFixed(0).padStart(3)}%  ${String(b.n).padStart(5)}  ${(said * 100).toFixed(1).padStart(6)}%  ${(happened * 100).toFixed(1).padStart(8)}%  ${((happened - said) * 100).toFixed(1).padStart(6)}${flag}`
+    );
+  }
+}
+
 const arg = (flag: string): string | undefined => {
   const i = process.argv.indexOf(flag);
   return i > -1 ? process.argv[i + 1] : undefined;
@@ -185,7 +295,9 @@ async function main() {
 
   const running = new Map<number, Running>();
   const modelScored: Scored[] = [];
+  const marketScored: MarketScored[] = [];
   const covered: Row[] = [];
+  const withMarkets = process.argv.includes("--markets");
   let skipped = 0;
 
   for (const r of rows) {
@@ -200,6 +312,35 @@ async function main() {
     if (p) {
       modelScored.push({ p, actual });
       covered.push(r);
+
+      if (withMarkets) {
+        const grid = predictGrid({ home: toRecord(home), away: toRecord(away), table });
+        if (grid) {
+          // Settled through the real settlement path rather than a rewritten
+          // copy of it, so a bug in one is a failure here rather than a pair of
+          // mistakes that agree with each other.
+          //
+          // These are league fixtures, where the final score is the
+          // ninety-minute score; a cup tie taken to extra time would need the
+          // split the provider gives and this replay does not carry.
+          const fixture = { finished: true, outcome: actual, goals90: { home: r.gh!, away: r.ga! } };
+          for (const market of MARKETS) {
+            const priced = priceMarket(market, grid);
+            for (const choice of market.choices) {
+              const result = settlePick(market.id, choice.id, fixture);
+              // A push is neither right nor wrong, so it says nothing about
+              // whether the price was any good — Draw No Bet on a draw.
+              if (result === null || result === "push") continue;
+              marketScored.push({
+                market: market.id,
+                choice: choice.id,
+                p: priced[choice.id],
+                hit: result === "correct" ? 1 : 0,
+              });
+            }
+          }
+        }
+      }
     } else {
       skipped++;
     }
@@ -240,6 +381,19 @@ async function main() {
   console.log(`\nRPS improvement over baseline: ${lift.toFixed(1)}%  ${lift > 0 ? "(model is better)" : "(MODEL IS WORSE — do not ship)"}`);
 
   calibration(modelScored);
+
+  if (withMarkets && marketScored.length > 0) {
+    summariseMarkets(marketScored);
+    for (const [market, choice] of [
+      ["btts", "yes"],
+      ["ou_1_5", "over"],
+      ["ou_2_5", "over"],
+      ["ou_3_5", "over"],
+      ["1x2", "home"],
+    ] as const) {
+      marketCalibration(marketScored, market, choice);
+    }
+  }
 }
 
 main();
