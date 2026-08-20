@@ -1,5 +1,6 @@
 "use client";
 
+import { selectionLabel } from "@/lib/markets";
 import { useEffect, useRef, useState } from "react";
 import { Heart, MessageCircle, Send } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -7,10 +8,9 @@ import clsx from "clsx";
 import {
   combinedConfidence,
   formatConfidence,
-  labelFor,
+  DEFAULT_MARKET,
   slipOutcome,
   tally,
-  type Outcome,
   type SavedPick,
 } from "@/lib/slips";
 
@@ -32,7 +32,8 @@ interface CommunityPost {
       fixture_id: number;
       home_team: string;
       away_team: string;
-      pick: Outcome;
+      market: string | null;
+      pick: string;
       confidence: number | null;
       result: SavedPick["result"];
     }[];
@@ -51,6 +52,7 @@ function SharedSlip({ slip }: { slip: NonNullable<CommunityPost["prediction_slip
     fixtureId: String(p.fixture_id),
     home: p.home_team,
     away: p.away_team,
+    market: p.market ?? DEFAULT_MARKET,
     pick: p.pick,
     confidence: p.confidence ?? 0,
     result: p.result,
@@ -92,7 +94,7 @@ function SharedSlip({ slip }: { slip: NonNullable<CommunityPost["prediction_slip
                 {p.home} v {p.away}
               </span>
               <span className="block text-xs text-gray-200 truncate">
-                {labelFor(p.pick, p.home, p.away)}
+                {selectionLabel(p.market, p.pick, p.home, p.away)}
               </span>
             </span>
             <span className="text-[11px] text-gray-500 tabular-nums shrink-0">

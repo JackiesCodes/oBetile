@@ -25,6 +25,7 @@ const sel = (fixtureId: string, over: Partial<Selection> = {}): Selection => ({
   fixtureId,
   home: "Arsenal",
   away: "Chelsea",
+  market: "1x2",
   pick: "home",
   confidence: 50,
   ...over,

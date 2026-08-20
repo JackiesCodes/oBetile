@@ -17,15 +17,16 @@ import {
   canAdd,
   cleanNote,
   cleanTitle,
+  DEFAULT_MARKET,
   isPickable,
   voidedResult,
   withSelection,
   withoutFixture,
-  type Outcome,
   type SavedPick,
   type Selection,
   type Slip,
 } from "@/lib/slips";
+import { isValidSelection, settlePick } from "@/lib/markets";
 
 /**
  * Selections are staged, then saved together as one slip.
@@ -49,7 +50,7 @@ interface PredictionContextType {
   select: (selection: Selection) => void;
   deselect: (fixtureId: string) => void;
   clearStaged: () => void;
-  isSelected: (fixtureId: string, pick: Outcome) => boolean;
+  isSelected: (fixtureId: string, pick: string) => boolean;
   isStaged: (fixtureId: string) => boolean;
   canStage: (fixtureId: string) => boolean;
 
@@ -72,7 +73,8 @@ interface SlipRow {
     fixture_id: number;
     home_team: string;
     away_team: string;
-    pick: Outcome;
+    market: string | null;
+    pick: string;
     confidence: number | null;
     kickoff: string | null;
     result: SavedPick["result"];
@@ -90,6 +92,8 @@ function toSlip(row: SlipRow): Slip {
       fixtureId: String(p.fixture_id),
       home: p.home_team,
       away: p.away_team,
+      // Rows written before the column existed are match results by definition.
+      market: p.market ?? DEFAULT_MARKET,
       pick: p.pick,
       confidence: p.confidence ?? 0,
       kickoff: p.kickoff,
@@ -151,6 +155,10 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
     // Second line of defence behind the button's own check: whatever route a
     // selection arrives by, a match that is over never enters a slip.
     if (!isPickable(selection)) return;
+    // The database used to constrain pick to home/draw/away and no longer can,
+    // because what is valid depends on the market. The catalogue is the guard
+    // now, so it is checked wherever a selection enters.
+    if (!isValidSelection(selection.market, selection.pick)) return;
     setStaged((cur) => withSelection(cur, selection));
   }, []);
 
@@ -161,7 +169,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
   const clearStaged = useCallback(() => setStaged([]), []);
 
   const isSelected = useCallback(
-    (fixtureId: string, pick: Outcome) =>
+    (fixtureId: string, pick: string) =>
       staged.some((s) => s.fixtureId === fixtureId && s.pick === pick),
     [staged]
   );
@@ -184,7 +192,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("prediction_slips")
-        .select("id,title,note,created_at,shared_at,slip_picks(fixture_id,home_team,away_team,pick,confidence,kickoff,result)")
+        .select("id,title,note,created_at,shared_at,slip_picks(fixture_id,home_team,away_team,market,pick,confidence,kickoff,result)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -219,15 +227,23 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
           const r = results[p.fixtureId];
           if (!r) return p;
 
-          // A played match scores normally.
-          if (r.finished && r.outcome) {
-            const result: SavedPick["result"] = r.outcome === p.pick ? "correct" : "wrong";
+          // Each market decides for itself what the fixture means, and returns
+          // null when it cannot yet say — not finished, or finished without the
+          // score that market needs.
+          const result = settlePick(p.market, p.pick, {
+            finished: r.finished,
+            outcome: r.outcome,
+            goals90: r.goals90,
+          });
+          if (result) {
             settled.push({ fixtureId: p.fixtureId, slipId: slip.id, result });
             return { ...p, result };
           }
 
           // A match that will never be played has no outcome to wait for, so
-          // the selection is voided rather than left pending forever.
+          // the selection is voided rather than left pending forever. Checked
+          // second: a fixture that actually finished should settle on what
+          // happened, not on the state its status code is in.
           const voided = voidedResult({ status: r.status, kickoff: r.kickoff });
           if (voided) {
             settled.push({ fixtureId: p.fixtureId, slipId: slip.id, result: voided });
@@ -266,7 +282,10 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
       // A panel left open can outlive its own fixtures. Saving what has since
       // kicked off would write selections that settle immediately; the slip
       // panel flags these so this is never a silent drop.
-      const fresh = staged.filter((s) => isPickable(s));
+      // Re-checked at the write as well as at the tap: a selection restored
+      // from localStorage never passed through select(), and localStorage is
+      // editable by anyone who cares to.
+      const fresh = staged.filter((s) => isPickable(s) && isValidSelection(s.market, s.pick));
       if (fresh.length === 0) return null;
       setSaving(true);
       try {
@@ -286,6 +305,7 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
             fixture_id: Number(s.fixtureId),
             home_team: s.home,
             away_team: s.away,
+            market: s.market ?? DEFAULT_MARKET,
             pick: s.pick,
             confidence: Math.round(s.confidence),
             kickoff: s.kickoff ?? null,

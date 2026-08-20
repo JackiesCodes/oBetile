@@ -156,6 +156,17 @@ describe("what cannot be settled stays pending", () => {
     expect(settlePick("btts", "yes", { ...base, finished: false })).toBeNull();
   });
 
+  it("returns null rather than throwing when the field is absent entirely", () => {
+    // What an edge-cached response written before goals90 existed looks like.
+    // Destructuring it threw, which would have taken the whole settlement loop
+    // down and left every pick in every slip pending.
+    const stale = { finished: true, outcome: "home" } as const;
+    expect(settlePick("btts", "yes", stale)).toBeNull();
+    expect(settlePick("ou_2_5", "over", { ...stale, goals90: null })).toBeNull();
+    // The outcome markets still settle off such a response, as they always did.
+    expect(settlePick("1x2", "home", stale)).toBe("correct");
+  });
+
   it("returns null for a goal market with no ninety-minute score", () => {
     // The ordinary case for rows written before those columns existed. Settling
     // these against the final score would quietly resolve extra-time goals into

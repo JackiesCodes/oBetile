@@ -14,12 +14,32 @@ import { classifyStatus } from "@/lib/match-status";
 export type Outcome = "home" | "draw" | "away";
 export type PickResult = "correct" | "wrong" | "push";
 
+/**
+ * Which market a selection was made in.
+ *
+ * Everything saved before markets existed was a match result, so that is what a
+ * missing value means — in localStorage, in the database, and in any row a
+ * client wrote before this shipped.
+ */
+export const DEFAULT_MARKET = "1x2";
+
+/**
+ * A choice within a market: "home", "over", "yes".
+ *
+ * Deliberately a plain string rather than a union. The valid set depends on the
+ * market, so it cannot be expressed in the type — lib/markets.ts owns that with
+ * isValidSelection, and is the single place that decides.
+ */
+export type SelectionId = string;
+
 /** A selection the visitor has made but not yet saved. */
 export interface Selection {
   fixtureId: string;
   home: string;
   away: string;
-  pick: Outcome;
+  /** Market id from lib/markets.ts. */
+  market: string;
+  pick: SelectionId;
   /** The percentage shown on the tile when it was picked. */
   confidence: number;
   kickoff?: string | null;

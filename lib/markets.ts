@@ -245,6 +245,49 @@ export function isValidSelection(market: string, selection: string): boolean {
   return BY_ID.get(market)?.choices.some((c) => c.id === selection) ?? false;
 }
 
+/**
+ * How a selection reads on a slip, where the fixture is already named above it.
+ *
+ * Markets whose choices are sides of the fixture take the team's name, because
+ * that is what the app has always shown for a match result and a slip full of
+ * "Home" would be a regression. The rest need enough of the market to stand on
+ * their own: "Yes" under a fixture is not a prediction anyone can read, while
+ * "Both teams to score: Yes" is.
+ */
+export function selectionLabel(
+  marketId: string,
+  selection: string,
+  home: string,
+  away: string
+): string {
+  const market = BY_ID.get(marketId);
+  const choice = market?.choices.find((c) => c.id === selection);
+  if (!market || !choice) return selection;
+
+  const side = (id: string) => (id === "home" ? home : id === "away" ? away : "Draw");
+
+  switch (market.id) {
+    case "1x2":
+      return side(selection);
+    case "dnb":
+      return `${side(selection)} (draw no bet)`;
+    case "double_chance":
+      // "Home or Draw" reads better as the club's own name.
+      return selection
+        .split("")
+        .map((c) => side(c === "1" ? "home" : c === "2" ? "away" : "draw"))
+        .join(" or ");
+    case "btts":
+      return `Both teams to score: ${choice.label}`;
+    case "odd_even":
+      return `${choice.label} number of goals`;
+    default:
+      // Over/Under already names its line, so the choice label is the whole
+      // prediction on its own.
+      return choice.label;
+  }
+}
+
 /** Every choice in a market, priced off one grid. */
 export function priceMarket(market: Market, grid: ScoreGrid): Record<string, number> {
   return Object.fromEntries(market.choices.map((c) => [c.id, c.probability(grid)]));
@@ -262,8 +305,15 @@ export function priceMarket(market: Market, grid: ScoreGrid): Record<string, num
 export interface SettlementFixture {
   finished: boolean;
   outcome: Outcome | null;
-  /** Score at ninety minutes; null when the provider gave no split. */
-  goals90: { home: number | null; away: number | null };
+  /**
+   * Score at ninety minutes.
+   *
+   * Optional, and not merely nullable. The results route is edge-cached, so for
+   * a few minutes after any deploy a client can be handed a response written
+   * before this field existed — and a settlement loop that destructures it
+   * would throw rather than degrade.
+   */
+  goals90?: { home: number | null; away: number | null } | null;
 }
 
 export function settlePick(
@@ -284,7 +334,8 @@ export function settlePick(
     return choice.settle({ home: 0, away: 0 }, fixture.outcome);
   }
 
-  const { home, away } = fixture.goals90;
+  const home = fixture.goals90?.home;
+  const away = fixture.goals90?.away;
   if (typeof home !== "number" || typeof away !== "number") return null;
   return choice.settle({ home, away }, resultOf(home, away));
 }

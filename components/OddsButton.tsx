@@ -2,7 +2,7 @@
 
 import { usePredictions } from "@/context/PredictionContext";
 import { oddsToPercent } from "@/lib/utils";
-import { isPickable, labelFor, MAX_SELECTIONS } from "@/lib/slips";
+import { DEFAULT_MARKET, isPickable, labelFor, MAX_SELECTIONS } from "@/lib/slips";
 import { Match } from "@/types";
 import clsx from "clsx";
 
@@ -57,6 +57,9 @@ export default function OddsButton({ match, market, label }: Props) {
       fixtureId: match.id,
       home: match.home,
       away: match.away,
+      // The card offers the match result and nothing else; the other markets
+      // live on the match page, where there is room for them.
+      market: DEFAULT_MARKET,
       pick: market,
       confidence: pct,
       // Carried so the slip can re-check for itself later; a status read once

@@ -1,5 +1,6 @@
 "use client";
 
+import { selectionLabel } from "@/lib/markets";
 import { useState } from "react";
 import clsx from "clsx";
 import { Check, ChevronDown, Share2, Trash2, X } from "lucide-react";
@@ -10,7 +11,6 @@ import {
   defaultTitle,
   formatConfidence,
   isPickable,
-  labelFor,
   slipOutcome,
   summariseSlips,
   tally,
@@ -98,7 +98,7 @@ function SavedSlipCard({ slip }: { slip: Slip }) {
                     {p.home} v {p.away}
                   </span>
                   <span className="block text-sm text-white truncate">
-                    {labelFor(p.pick, p.home, p.away)}
+                    {selectionLabel(p.market, p.pick, p.home, p.away)}
                   </span>
                 </span>
                 <span className="text-xs text-gray-500 tabular-nums shrink-0">{p.confidence}%</span>
@@ -221,7 +221,7 @@ function SlipBody() {
                   {gone ? "Kicked off — remove to save" : `${s.home} v ${s.away}`}
                 </span>
                 <span className="block text-sm font-semibold text-white truncate">
-                  {labelFor(s.pick, s.home, s.away)}
+                  {selectionLabel(s.market, s.pick, s.home, s.away)}
                 </span>
               </span>
               <span className="text-sm text-brand-accent font-bold tabular-nums shrink-0">

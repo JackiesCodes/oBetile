@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { selectionLabel } from "@/lib/markets";
 import { useAuth } from "@/context/AuthContext";
 import { usePredictions } from "@/context/PredictionContext";
 import { createClient, hasSupabaseConfig } from "@/lib/supabase/client";
@@ -27,7 +28,9 @@ interface RecentPick {
   fixture_id: number;
   home_team: string;
   away_team: string;
-  pick: "home" | "draw" | "away";
+  /** Market id from lib/markets.ts. */
+  market: string;
+  pick: string;
   created_at: string;
   /** Written by the prediction provider once the match finishes. */
   result: "correct" | "wrong" | "push" | null;
@@ -35,8 +38,14 @@ interface RecentPick {
   slipTitle: string;
 }
 
-const PICK_LABEL: Record<string, string> = { home: "Home Win", draw: "Draw", away: "Away Win" };
-const PICK_COLOR: Record<string, string> = { home: "text-brand-accent", draw: "text-gray-400", away: "text-red-400" };
+// Colour reads the side of the fixture, which only a match-result-shaped
+// selection has. Anything else — a total, both teams to score — is not a side,
+// so it stays neutral rather than being forced into one.
+const PICK_COLOR: Record<string, string> = {
+  home: "text-brand-accent",
+  draw: "text-gray-400",
+  away: "text-red-400",
+};
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
@@ -109,6 +118,7 @@ export default function ProfilePage() {
         fixture_id: Number(p.fixtureId),
         home_team: p.home,
         away_team: p.away,
+        market: p.market,
         pick: p.pick,
         created_at: slip.createdAt,
         result: p.result,
@@ -262,7 +272,7 @@ export default function ProfilePage() {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-300 truncate">{pick.home_team} vs {pick.away_team}</p>
-                    <p className={`text-xs font-semibold mt-0.5 ${PICK_COLOR[pick.pick]}`}>{PICK_LABEL[pick.pick]}</p>
+                    <p className={`text-xs font-semibold mt-0.5 ${PICK_COLOR[pick.pick] ?? "text-gray-300"}`}>{selectionLabel(pick.market, pick.pick, pick.home_team, pick.away_team)}</p>
                     {/* A selection belongs to a saved prediction now, not to
                         nothing in particular. */}
                     <p className="text-[10px] text-gray-600 truncate mt-0.5">{pick.slipTitle}</p>
