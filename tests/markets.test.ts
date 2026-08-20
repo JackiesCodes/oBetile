@@ -653,6 +653,36 @@ describe("pricing from the published 1X2 alone", () => {
   });
 });
 
+describe("a choice id does not identify a selection on its own", () => {
+  it("repeats the same choice ids across many markets", () => {
+    /*
+     * Not a defect — "over" is the natural name for the over side of every
+     * total — but it means a selection is only identified by the market AND the
+     * choice together. Matching on the choice alone lit up Under on every
+     * over/under card the moment one was tapped, which looked like the app had
+     * staged nine picks when it had staged one.
+     */
+    const owners = (choice: string) =>
+      MARKETS.filter((m) => m.choices.some((c) => c.id === choice)).map((m) => m.id);
+
+    expect(owners("over").length).toBeGreaterThan(5);
+    expect(owners("under").length).toBeGreaterThan(5);
+    expect(owners("yes").length).toBeGreaterThan(5);
+    expect(owners("home").length).toBeGreaterThan(3);
+  });
+
+  it("makes market and choice together unique", () => {
+    const seen = new Set<string>();
+    for (const m of MARKETS) {
+      for (const c of m.choices) {
+        const key = `${m.id}:${c.id}`;
+        expect(seen.has(key), key).toBe(false);
+        seen.add(key);
+      }
+    }
+  });
+});
+
 describe("categories decide what a filter shows", () => {
   it("puts every market in exactly one category", () => {
     // A market that lands in the wrong bucket is not merely mislabelled — it

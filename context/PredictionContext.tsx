@@ -50,7 +50,7 @@ interface PredictionContextType {
   select: (selection: Selection) => void;
   deselect: (fixtureId: string) => void;
   clearStaged: () => void;
-  isSelected: (fixtureId: string, pick: string) => boolean;
+  isSelected: (fixtureId: string, market: string, pick: string) => boolean;
   isStaged: (fixtureId: string) => boolean;
   canStage: (fixtureId: string) => boolean;
 
@@ -168,9 +168,19 @@ export function PredictionProvider({ children }: { children: ReactNode }) {
 
   const clearStaged = useCallback(() => setStaged([]), []);
 
+  /**
+   * Whether this exact selection is staged.
+   *
+   * The market is part of the identity, not decoration. Choice ids repeat all
+   * over the catalogue — "over" belongs to nine different totals, "yes" to a
+   * dozen markets, "home" to most of the rest — so matching on the fixture and
+   * the choice alone lit up Under on every over/under card the moment one was
+   * tapped. Only ever one of them was actually staged; the other cards were
+   * answering a question about a choice id they merely shared.
+   */
   const isSelected = useCallback(
-    (fixtureId: string, pick: string) =>
-      staged.some((s) => s.fixtureId === fixtureId && s.pick === pick),
+    (fixtureId: string, market: string, pick: string) =>
+      staged.some((s) => s.fixtureId === fixtureId && s.market === market && s.pick === pick),
     [staged]
   );
 

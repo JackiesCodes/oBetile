@@ -15,7 +15,7 @@ interface Props {
 export default function OddsButton({ match, market, label }: Props) {
   const { select, deselect, isSelected, isStaged, canStage } = usePredictions();
   const odds = match.odds[market];
-  const selected = isSelected(match.id, market);
+  const selected = isSelected(match.id, DEFAULT_MARKET, market);
   // A match that is over cannot be predicted, only reported. Leaving these
   // tappable let already-decided fixtures into slips, where they settled the
   // moment they were saved.

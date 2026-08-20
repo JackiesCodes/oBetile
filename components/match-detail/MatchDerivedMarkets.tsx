@@ -216,7 +216,7 @@ export default function MatchDerivedMarkets({
                         homeTeamName,
                         awayTeamName
                       );
-                      const selected = isSelected(String(fixtureId), choice.id);
+                      const selected = isSelected(String(fixtureId), market.id, choice.id);
                       // One selection per fixture, so a second market on the
                       // same match replaces the first rather than adding to it.
                       const full =
