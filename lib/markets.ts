@@ -814,6 +814,364 @@ const HIGHEST_SCORING_HALF: MarketDefinition = {
   ],
 };
 
+/* ── Generic markets over a chosen period ─────────────────────── */
+
+/**
+ * Which distribution a market reads, and which score it settles against.
+ *
+ * Most of what a sportsbook lists is a handful of shapes — a total, an exact
+ * count, odd or even, a result — applied to the whole match or to one half.
+ * Naming the period once and building each shape from it is what keeps thirty
+ * markets from being thirty near-copies that drift apart.
+ */
+type Period = "full" | "first" | "second";
+
+const gridFor = (ctx: MarketContext, p: Period) =>
+  p === "full" ? ctx.full : p === "first" ? ctx.first : ctx.second;
+
+const scoreFor = (p: Period, score: Score, halves?: Halves): Score | null => {
+  if (p === "full") return score;
+  if (!halves) return null;
+  return p === "first" ? halves.first : halves.second;
+};
+
+const periodName = (p: Period) => (p === "first" ? "1st Half" : p === "second" ? "2nd Half" : "");
+const periodSettles = (p: Period): SettlesOn => (p === "full" ? "goals" : "halves");
+const prefixed = (p: Period, label: string) =>
+  p === "full" ? label : `${periodName(p)} — ${label}`;
+
+/** A market whose every choice is a test on one period's scoreline. */
+function periodMarket(
+  p: Period,
+  id: string,
+  label: string,
+  description: string,
+  choices: { id: string; label: string; test: (h: number, a: number) => boolean }[]
+): MarketDefinition {
+  return {
+    id,
+    label: prefixed(p, label),
+    description,
+    settlesOn: periodSettles(p),
+    offered: true,
+    choices: choices.map((c) => ({
+      id: c.id,
+      label: c.label,
+      probability: (ctx: MarketContext) => sumGrid(gridFor(ctx, p), c.test),
+      settle: (score: Score, _o: Outcome, halves?: Halves) => {
+        const s = scoreFor(p, score, halves);
+        return hit(!!s && c.test(s.home, s.away));
+      },
+    })),
+  };
+}
+
+/** Double chance over a period. */
+function periodDoubleChance(p: Period, id: string): MarketDefinition {
+  return periodMarket(p, id, "Double Chance", "Two of the three results covered", [
+    { id: "1x", label: "Home or Draw", test: (h, a) => h >= a },
+    { id: "12", label: "Home or Away", test: (h, a) => h !== a },
+    { id: "x2", label: "Draw or Away", test: (h, a) => h <= a },
+  ]);
+}
+
+/** Draw no bet over a period — the one shape that pushes. */
+function periodDrawNoBet(p: Period, id: string): MarketDefinition {
+  return {
+    id,
+    label: prefixed(p, "Draw No Bet"),
+    description: "Backing a side, with a draw voided rather than lost",
+    settlesOn: periodSettles(p),
+    offered: true,
+    choices: (["home", "away"] as const).map((side) => ({
+      id: side,
+      label: sideName(side),
+      probability: (ctx: MarketContext) => {
+        const grid = gridFor(ctx, p);
+        const win = sumGrid(grid, (h, a) => resultOf(h, a) === side);
+        const draw = sumGrid(grid, (h, a) => h === a);
+        const decisive = sumGrid(grid, () => true) - draw;
+        return decisive > 0 ? win / decisive : 0;
+      },
+      settle: (score: Score, _o: Outcome, halves?: Halves): PickResult => {
+        const s = scoreFor(p, score, halves);
+        if (!s) return "wrong";
+        if (s.home === s.away) return "push";
+        return hit(resultOf(s.home, s.away) === side);
+      },
+    })),
+  };
+}
+
+/** A market whose choices test both halves together. */
+function bothHalvesMarket(
+  id: string,
+  label: string,
+  description: string,
+  choices: { id: string; label: string; test: (first: Score, second: Score) => boolean }[]
+): MarketDefinition {
+  return {
+    id,
+    label,
+    description,
+    settlesOn: "halves",
+    offered: true,
+    choices: choices.map((c) => ({
+      id: c.id,
+      label: c.label,
+      probability: (ctx: MarketContext) =>
+        sumHalves(ctx, (h1, a1, h2, a2) =>
+          c.test({ home: h1, away: a1 }, { home: h2, away: a2 })
+        ),
+      settle: (_score: Score, _o: Outcome, halves?: Halves) =>
+        hit(!!halves && c.test(halves.first, halves.second)),
+    })),
+  };
+}
+
+/* ── The shapes, instantiated ──────────────────────────────────── */
+
+const exactGoalsChoices = (top: number, of: (h: number, a: number) => number) => [
+  ...Array.from({ length: top }, (_, n) => ({
+    id: String(n),
+    label: String(n),
+    test: (h: number, a: number) => of(h, a) === n,
+  })),
+  {
+    id: `${top}plus`,
+    label: `${top} or more`,
+    test: (h: number, a: number) => of(h, a) >= top,
+  },
+];
+
+const totalOf = (h: number, a: number) => h + a;
+const oneSide = (side: "home" | "away") => (h: number, a: number) => goalsOf(side, h, a);
+
+/** Exact goals for a single side. */
+const teamExactGoals = (side: "home" | "away") =>
+  periodMarket(
+    "full",
+    `team_exact_goals_${side}`,
+    `${sideName(side)} Exact Goals`,
+    `Exactly how many the ${side} side scores`,
+    exactGoalsChoices(3, oneSide(side))
+  );
+
+/** Over/under a half-goal line within one period. */
+const periodOverUnder = (p: Period, line: number) =>
+  periodMarket(
+    p,
+    `${p === "full" ? "ou" : p === "first" ? "ou_1h" : "ou_2h"}_${String(line).replace(".", "_")}`,
+    `Over/Under ${line.toFixed(1)} Goals`,
+    `Total goals, against a line of ${line.toFixed(1)}`,
+    [
+      { id: "over", label: `Over ${line.toFixed(1)}`, test: (h, a) => h + a > line },
+      { id: "under", label: `Under ${line.toFixed(1)}`, test: (h, a) => h + a < line },
+    ]
+  );
+
+const periodOddEven = (p: Period, id: string) =>
+  periodMarket(p, id, "Odd or Even Goals", "Whether the total is odd or even", [
+    { id: "odd", label: "Odd", test: (h, a) => (h + a) % 2 === 1 },
+    { id: "even", label: "Even", test: (h, a) => (h + a) % 2 === 0 },
+  ]);
+
+const periodExactGoals = (p: Period, id: string) =>
+  periodMarket(p, id, "Exact Goals", "Exactly how many goals", exactGoalsChoices(3, totalOf));
+
+const periodMultiGoals = (p: Period, id: string) =>
+  periodMarket(p, id, "Multi Goals", "Total goals within a range", [
+    { id: "none", label: "No goal", test: (h, a) => h + a === 0 },
+    { id: "1_2", label: "1–2", test: (h, a) => h + a >= 1 && h + a <= 2 },
+    { id: "1_3", label: "1–3", test: (h, a) => h + a >= 1 && h + a <= 3 },
+    { id: "2_3", label: "2–3", test: (h, a) => h + a >= 2 && h + a <= 3 },
+    { id: "4plus", label: "4+", test: (h, a) => h + a >= 4 },
+  ]);
+
+/** Exact scoreline within one period, bucketed past two apiece. */
+const periodCorrectScore = (p: Period, id: string) =>
+  periodMarket(p, id, "Correct Score", "The exact score", [
+    ...[0, 1, 2].flatMap((hh) =>
+      [0, 1, 2].map((aa) => ({
+        id: `${hh}_${aa}`,
+        label: `${hh}–${aa}`,
+        test: (h: number, a: number) => h === hh && a === aa,
+      }))
+    ),
+    { id: "other", label: "Any other", test: (h: number, a: number) => h > 2 || a > 2 },
+  ]);
+
+/**
+ * The winning margin, which is what a grouped correct score is really asking.
+ *
+ * Betting sites list this as several scorelines bundled together; the bundles
+ * are always margins, so naming the margin says the same thing without asking
+ * anyone to read a list of scores.
+ */
+const WINNING_MARGIN = periodMarket(
+  "full",
+  "winning_margin",
+  "Winning Margin",
+  "By how much, and to whom",
+  [
+    { id: "home_1", label: "Home by 1", test: (h, a) => h - a === 1 },
+    { id: "home_2", label: "Home by 2", test: (h, a) => h - a === 2 },
+    { id: "home_3plus", label: "Home by 3+", test: (h, a) => h - a >= 3 },
+    { id: "draw", label: "Draw", test: (h, a) => h === a },
+    { id: "away_1", label: "Away by 1", test: (h, a) => a - h === 1 },
+    { id: "away_2", label: "Away by 2", test: (h, a) => a - h === 2 },
+    { id: "away_3plus", label: "Away by 3+", test: (h, a) => a - h >= 3 },
+  ]
+);
+
+const DRAW_OR_OVER = periodMarket(
+  "full",
+  "draw_or_over_2_5",
+  "Draw or Over 2.5",
+  "A draw, or the match passing 2.5 goals",
+  [
+    { id: "yes", label: "Yes", test: (h, a) => h === a || h + a > 2.5 },
+    { id: "no", label: "No", test: (h, a) => !(h === a || h + a > 2.5) },
+  ]
+);
+
+const DRAW_OR_BTTS = periodMarket(
+  "full",
+  "draw_or_btts",
+  "Draw or Both Teams to Score",
+  "A draw, or both sides scoring",
+  [
+    { id: "yes", label: "Yes", test: (h, a) => h === a || (h > 0 && a > 0) },
+    { id: "no", label: "No", test: (h, a) => !(h === a || (h > 0 && a > 0)) },
+  ]
+);
+
+const DC_BTTS = periodMarket(
+  "full",
+  "dc_btts",
+  "Double Chance & Both Teams to Score",
+  "Two results covered, and whether both sides scored",
+  (
+    [
+      { id: "1x", label: "Home or Draw", test: (h: number, a: number) => h >= a },
+      { id: "12", label: "Home or Away", test: (h: number, a: number) => h !== a },
+      { id: "x2", label: "Draw or Away", test: (h: number, a: number) => h <= a },
+    ] as const
+  ).flatMap(({ id, label, test }) =>
+    [true, false].map((yes) => ({
+      id: `${id}_${yes ? "yes" : "no"}`,
+      label: `${label} & BTTS ${yes ? "Yes" : "No"}`,
+      test: (h: number, a: number) => test(h, a) && (h > 0 && a > 0) === yes,
+    }))
+  )
+);
+
+/** Result, both teams to score, and a total — all three at once. */
+const TRIPLE_COMBO = periodMarket(
+  "full",
+  "result_btts_ou_2_5",
+  "Result & Both Teams to Score & Over/Under 2.5",
+  "All three together",
+  (["home", "draw", "away"] as const).flatMap((side) =>
+    [true, false].flatMap((yes) =>
+      [true, false].map((over) => ({
+        id: `${side}_${yes ? "yes" : "no"}_${over ? "over" : "under"}`,
+        label: `${side === "draw" ? "Draw" : sideName(side)} & BTTS ${yes ? "Y" : "N"} & ${over ? "O" : "U"}2.5`,
+        test: (h: number, a: number) =>
+          resultOf(h, a) === side && (h > 0 && a > 0) === yes && h + a > 2.5 === over,
+      }))
+    )
+  )
+);
+
+const BTTS_BOTH_HALVES = bothHalvesMarket(
+  "btts_both_halves",
+  "Both Teams to Score in Both Halves",
+  "Both sides score before the break and again after it",
+  [
+    {
+      id: "yes",
+      label: "Yes",
+      test: (f, s) => f.home > 0 && f.away > 0 && s.home > 0 && s.away > 0,
+    },
+    {
+      id: "no",
+      label: "No",
+      test: (f, s) => !(f.home > 0 && f.away > 0 && s.home > 0 && s.away > 0),
+    },
+  ]
+);
+
+const teamScoresBothHalves = (side: "home" | "away") =>
+  bothHalvesMarket(
+    `score_both_halves_${side}`,
+    `${sideName(side)} to Score in Both Halves`,
+    `The ${side} side scores in each half`,
+    [
+      {
+        id: "yes",
+        label: "Yes",
+        test: (f, s) => goalsOf(side, f.home, f.away) > 0 && goalsOf(side, s.home, s.away) > 0,
+      },
+      {
+        id: "no",
+        label: "No",
+        test: (f, s) => !(goalsOf(side, f.home, f.away) > 0 && goalsOf(side, s.home, s.away) > 0),
+      },
+    ]
+  );
+
+const winsHalf = (side: "home" | "away", s: Score) => resultOf(s.home, s.away) === side;
+
+const winEitherHalf = (side: "home" | "away") =>
+  bothHalvesMarket(
+    `win_either_half_${side}`,
+    `${sideName(side)} to Win Either Half`,
+    `The ${side} side outscores the other in at least one half`,
+    [
+      { id: "yes", label: "Yes", test: (f, s) => winsHalf(side, f) || winsHalf(side, s) },
+      { id: "no", label: "No", test: (f, s) => !(winsHalf(side, f) || winsHalf(side, s)) },
+    ]
+  );
+
+const winBothHalves = (side: "home" | "away") =>
+  bothHalvesMarket(
+    `win_both_halves_${side}`,
+    `${sideName(side)} to Win Both Halves`,
+    `The ${side} side outscores the other in each half`,
+    [
+      { id: "yes", label: "Yes", test: (f, s) => winsHalf(side, f) && winsHalf(side, s) },
+      { id: "no", label: "No", test: (f, s) => !(winsHalf(side, f) && winsHalf(side, s)) },
+    ]
+  );
+
+const EXTRA_MARKETS = [
+  ...(["home", "away"] as const).map(teamExactGoals),
+  overUnder(5.5),
+  WINNING_MARGIN,
+  DRAW_OR_OVER,
+  DRAW_OR_BTTS,
+  DC_BTTS,
+  TRIPLE_COMBO,
+  // Halves, in the same shapes the full match already offers.
+  ...(["first", "second"] as const).flatMap((p) => [0.5, 1.5].map((line) => periodOverUnder(p, line))),
+  periodOddEven("first", "odd_even_1h"),
+  periodOddEven("second", "odd_even_2h"),
+  periodExactGoals("first", "exact_goals_1h"),
+  periodExactGoals("second", "exact_goals_2h"),
+  periodMultiGoals("first", "multi_goals_1h"),
+  periodMultiGoals("second", "multi_goals_2h"),
+  periodDoubleChance("first", "dc_1h"),
+  periodDoubleChance("second", "dc_2h"),
+  periodDrawNoBet("first", "dnb_1h"),
+  periodDrawNoBet("second", "dnb_2h"),
+  periodCorrectScore("first", "correct_score_1h"),
+  BTTS_BOTH_HALVES,
+  ...(["home", "away"] as const).map(teamScoresBothHalves),
+  ...(["home", "away"] as const).map(winEitherHalf),
+  ...(["home", "away"] as const).map(winBothHalves),
+];
+
 const HALF_MARKETS = [
   FIRST_HALF_RESULT,
   SECOND_HALF_RESULT,
@@ -846,6 +1204,7 @@ const DEFINITIONS: MarketDefinition[] = [
   BTTS_OVER_UNDER,
   DOUBLE_CHANCE_OVER_UNDER,
   ...HALF_MARKETS,
+  ...EXTRA_MARKETS,
 ];
 
 /**
@@ -911,11 +1270,27 @@ export function categoryOf(market: Market): MarketCategory {
   const { id, settlesOn } = market;
   if (settlesOn === "halves") return "halves";
   if (id.startsWith("ah_") || id.startsWith("eh_")) return "handicap";
-  if (id.startsWith("result_") || id.startsWith("btts_ou") || id.startsWith("dc_ou")) return "combo";
-  if (id.startsWith("ou_") || id.startsWith("team_total_") || id === "exact_goals" || id === "goal_bands" || id === "multi_goals") {
+  if (
+    id.startsWith("result_") ||
+    id.startsWith("btts_ou") ||
+    id.startsWith("dc_") ||
+    id.startsWith("draw_or_")
+  ) {
+    return "combo";
+  }
+  if (
+    id.startsWith("ou_") ||
+    id.startsWith("team_total_") ||
+    id.startsWith("team_exact_goals_") ||
+    id === "exact_goals" ||
+    id === "goal_bands" ||
+    id === "multi_goals"
+  ) {
     return "totals";
   }
-  if (id === "1x2" || id === "double_chance" || id === "dnb") return "result";
+  if (id === "1x2" || id === "double_chance" || id === "dnb" || id === "winning_margin") {
+    return "result";
+  }
   return "goals";
 }
 

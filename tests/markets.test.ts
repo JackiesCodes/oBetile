@@ -24,7 +24,19 @@ import { normaliseToFairOdds } from "@/lib/odds";
  * every market gets a truth table rather than a sample.
  */
 
-const grid = scoreGrid(1.6, 1.2);
+const rawGrid = scoreGrid(1.6, 1.2);
+/**
+ * The same grid, normalised to exactly one.
+ *
+ * The coverage check below compares against a round number, and an unnormalised
+ * grid makes that number depend on how much mass fell off the top — differently
+ * for a market that reads one period and one that ranges over both, where the
+ * shortfall is squared. Normalising first removes that from the question so the
+ * test is about whether a market's choices partition the outcome space, which is
+ * the thing worth asserting.
+ */
+const gridMass = rawGrid.reduce((s, row) => s + row.reduce((a, b) => a + b, 0), 0);
+const grid = rawGrid.map((row) => row.map((p) => p / gridMass));
 
 const finished = (home: number, away: number): SettlementFixture => ({
   finished: true,
@@ -34,38 +46,22 @@ const finished = (home: number, away: number): SettlementFixture => ({
 
 describe("every market adds up the way its shape implies", () => {
   /**
-   * How many times over each market covers the grid.
-   *
-   * Three shapes, and the distinction is the point rather than bookkeeping:
-   *
-   * - Most markets partition the outcome space, so their choices sum to the
-   *   grid's own total — just under one, since the tail past MAX_GOALS is gone.
-   * - Draw No Bet and the Asian handicaps drop the fixtures that void and
-   *   renormalise onto the rest, so they sum to exactly one however much mass
-   *   the grid is carrying.
-   * - Double Chance covers two of three results per choice, so its choices
-   *   cover everything twice; combining it with a two-way market keeps that.
-   * - Multi Goals overlaps itself deliberately — 1–2 and 1–3 are both offered —
-   *   so it covers the grid whatever the ranges happen to add up to, and the
-   *   only claim worth making is that nothing is negative.
+   * Nearly every market partitions the outcome space, so its choices sum to
+   * one. Draw No Bet and the Asian handicaps drop what voids and renormalise
+   * onto the rest, which also sums to one. Two shapes do not, and they are the
+   * exceptions worth naming.
    */
-  const renormalised = (id: string) => id === "dnb" || id.startsWith("ah_");
+  // Double chance covers two of three results per choice, so its choices cover
+  // the space twice; anything built on top of it inherits that.
   const doubleCovering = (id: string) => id === "double_chance" || id.startsWith("dc_");
-  const overlapping = (id: string) => id === "multi_goals";
-  // Half-time/full-time and highest scoring half range over BOTH halves at
-  // once, so their mass is the product of two grids rather than one grid's.
-  const joint = (id: string) => id === "ht_ft" || id === "highest_scoring_half";
+  // Multi Goals overlaps itself deliberately — 1-2 and 1-3 are both offered — so
+  // there is no round number for it to add up to.
+  const overlapping = (id: string) => id.startsWith("multi_goals");
 
   it.each(MARKETS.map((m) => [m.id, m] as const))("%s covers the grid as expected", (id, m) => {
     if (overlapping(id)) return;
-    const mass = sumGrid(grid, () => true);
     const total = Object.values(priceMarket(m, grid)).reduce((a, b) => a + b, 0);
-    const expected = renormalised(id)
-      ? 1
-      : joint(id)
-      ? mass * mass
-      : mass * (doubleCovering(id) ? 2 : 1);
-    expect(total).toBeCloseTo(expected, 9);
+    expect(total).toBeCloseTo(doubleCovering(id) ? 2 : 1, 9);
   });
 
   it.each(MARKETS.map((m) => [m.id, m] as const))("%s prices nothing negative", (_id, m) => {
@@ -366,6 +362,112 @@ describe("halves", () => {
     for (const m of MARKETS.filter((m) => m.settlesOn === "halves")) {
       expect(m.evidence).toBe("no-better-than-base-rate");
     }
+  });
+});
+
+describe("the shapes applied to a half", () => {
+  const withHalves = (h1: number, a1: number, h: number, a: number): SettlementFixture => ({
+    finished: true,
+    outcome: h > a ? "home" : h < a ? "away" : "draw",
+    goals90: { home: h, away: a },
+    goalsHt: { home: h1, away: a1 },
+  });
+
+  it("reads a half total off that half alone", () => {
+    // 1-0 at the break, 1-3 at the end. First half one goal, second half three.
+    expect(settlePick("ou_1h_0_5", "over", withHalves(1, 0, 1, 3))).toBe("correct");
+    expect(settlePick("ou_1h_1_5", "over", withHalves(1, 0, 1, 3))).toBe("wrong");
+    expect(settlePick("ou_2h_1_5", "over", withHalves(1, 0, 1, 3))).toBe("correct");
+  });
+
+  it("counts odd and even within the half", () => {
+    // Second half is 0-3: odd, even though the match total of four is even.
+    expect(settlePick("odd_even_2h", "odd", withHalves(1, 0, 1, 3))).toBe("correct");
+    expect(settlePick("odd_even", "even", withHalves(1, 0, 1, 3))).toBe("correct");
+  });
+
+  it("voids a half draw no bet on a level half", () => {
+    // 1-1 first half: level, so the stake comes back regardless of the result.
+    expect(settlePick("dnb_1h", "home", withHalves(1, 1, 2, 1))).toBe("push");
+    expect(settlePick("dnb_1h", "home", withHalves(1, 0, 2, 1))).toBe("correct");
+  });
+
+  it("covers two results with a half double chance", () => {
+    expect(settlePick("dc_1h", "1x", withHalves(0, 0, 1, 0))).toBe("correct");
+    expect(settlePick("dc_1h", "x2", withHalves(1, 0, 1, 0))).toBe("wrong");
+  });
+
+  it("settles a half-time correct score", () => {
+    expect(settlePick("correct_score_1h", "1_0", withHalves(1, 0, 3, 2))).toBe("correct");
+    expect(settlePick("correct_score_1h", "other", withHalves(3, 0, 4, 0))).toBe("correct");
+  });
+
+  it("needs both halves for the both-halves markets", () => {
+    // 1-1 and 1-1: both sides scored in each half.
+    expect(settlePick("btts_both_halves", "yes", withHalves(1, 1, 2, 2))).toBe("correct");
+    // 1-1 then 1-0 to the home side: the away side did not score after the break.
+    expect(settlePick("btts_both_halves", "yes", withHalves(1, 1, 2, 1))).toBe("wrong");
+    expect(settlePick("score_both_halves_home", "yes", withHalves(1, 1, 2, 1))).toBe("correct");
+    expect(settlePick("score_both_halves_away", "yes", withHalves(1, 1, 2, 1))).toBe("wrong");
+  });
+
+  it("separates winning either half from winning both", () => {
+    // Home wins the first 1-0, second half 0-0: either yes, both no.
+    expect(settlePick("win_either_half_home", "yes", withHalves(1, 0, 1, 0))).toBe("correct");
+    expect(settlePick("win_both_halves_home", "yes", withHalves(1, 0, 1, 0))).toBe("wrong");
+    // 1-0 then 1-0 again: both.
+    expect(settlePick("win_both_halves_home", "yes", withHalves(1, 0, 2, 0))).toBe("correct");
+  });
+
+  it("stays pending without a half-time score", () => {
+    const noHalf: SettlementFixture = {
+      finished: true,
+      outcome: "home",
+      goals90: { home: 2, away: 1 },
+    };
+    for (const id of ["ou_1h_0_5", "dnb_1h", "btts_both_halves", "win_both_halves_home"]) {
+      expect(settlePick(id, marketById(id)!.choices[0].id, noHalf), id).toBeNull();
+    }
+  });
+});
+
+describe("the new full-match shapes", () => {
+  it("counts one side's goals for team exact goals", () => {
+    expect(settlePick("team_exact_goals_home", "2", finished(2, 3))).toBe("correct");
+    expect(settlePick("team_exact_goals_away", "3plus", finished(2, 3))).toBe("correct");
+    expect(settlePick("team_exact_goals_away", "3plus", finished(2, 5))).toBe("correct");
+  });
+
+  it("reads the winning margin", () => {
+    expect(settlePick("winning_margin", "home_1", finished(2, 1))).toBe("correct");
+    expect(settlePick("winning_margin", "home_3plus", finished(4, 0))).toBe("correct");
+    expect(settlePick("winning_margin", "draw", finished(2, 2))).toBe("correct");
+    expect(settlePick("winning_margin", "away_2", finished(0, 2))).toBe("correct");
+  });
+
+  it("takes either half of a draw-or market", () => {
+    // A draw satisfies it whatever the goals did.
+    expect(settlePick("draw_or_over_2_5", "yes", finished(0, 0))).toBe("correct");
+    // Not a draw, but past the line.
+    expect(settlePick("draw_or_over_2_5", "yes", finished(3, 0))).toBe("correct");
+    // Neither.
+    expect(settlePick("draw_or_over_2_5", "yes", finished(2, 0))).toBe("wrong");
+    expect(settlePick("draw_or_btts", "yes", finished(2, 1))).toBe("correct");
+    expect(settlePick("draw_or_btts", "yes", finished(2, 0))).toBe("wrong");
+  });
+
+  it("needs all three parts of the triple combo", () => {
+    // Home win, both scored, over 2.5.
+    expect(settlePick("result_btts_ou_2_5", "home_yes_over", finished(2, 1))).toBe("correct");
+    // Home win and over 2.5, but the away side did not score.
+    expect(settlePick("result_btts_ou_2_5", "home_yes_over", finished(3, 0))).toBe("wrong");
+    expect(settlePick("result_btts_ou_2_5", "home_no_over", finished(3, 0))).toBe("correct");
+  });
+
+  it("needs both parts of double chance and both teams to score", () => {
+    expect(settlePick("dc_btts", "1x_yes", finished(2, 1))).toBe("correct");
+    expect(settlePick("dc_btts", "1x_yes", finished(2, 0))).toBe("wrong");
+    expect(settlePick("dc_btts", "x2_yes", finished(1, 1))).toBe("correct");
   });
 });
 
