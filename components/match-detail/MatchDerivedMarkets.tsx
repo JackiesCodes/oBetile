@@ -9,15 +9,21 @@ import { isPickable, MAX_SELECTIONS } from "@/lib/slips";
 /**
  * The markets beyond the match result, on the page that has room for them.
  *
- * Only two: double chance and draw no bet. Both are functions of the match
- * result and nothing else, which is why they are here and both teams to score
- * is not — scripts/backtest.ts --markets measured every derived market against
- * quoting its own base rate, and these were the ones that beat it. See the
- * `offered` flag in lib/markets.ts for the numbers.
+ * Split in two, and the split is the honest part. scripts/backtest.ts --markets
+ * scored every one of these over three league seasons against the only bar that
+ * means anything — whether the percentage beats simply quoting how often the
+ * outcome happens. Those that cleared it are shown outright. Those that did not
+ * are behind a disclosure that says so plainly, because a number that looks
+ * exactly as authoritative as a good one and is not is the thing worth guarding
+ * against.
  *
- * Because they are functions of the 1X2, they need no scoreline grid and no
- * second model call: the three percentages this already fetches are the whole
- * input, and the figures cannot drift from the match result shown elsewhere.
+ * The pattern is not arbitrary: the markets that work ask about the MARGIN
+ * between the sides, and the ones that do not ask about the TOTAL they combine
+ * for. That is what the model is. It pins the difference between two
+ * expected-goal figures and leaves their sum to the league average.
+ *
+ * All of them price off the published 1X2 alone — no scoreline grid, no second
+ * model call — so none can drift from the match result shown elsewhere.
  */
 
 interface Props {
@@ -64,6 +70,8 @@ export default function MatchDerivedMarkets({
   // The match result is on the fixture row already; repeating it here would be
   // a second place to tap the same prediction.
   const markets = OFFERED_MARKETS.filter((m) => m.id !== "1x2");
+  const measured = markets.filter((m) => m.evidence === "beats-base-rate");
+  const unmeasured = markets.filter((m) => m.evidence !== "beats-base-rate");
 
   if (loading) {
     return (
@@ -87,6 +95,92 @@ export default function MatchDerivedMarkets({
   if (!outcomes) return null;
 
   const over = !isPickable({ status, kickoff });
+  // Captured once the guard above has run: the narrowing does not reach inside
+  // a closure, and every market prices off the same three numbers anyway.
+  const published = outcomes;
+
+  function renderMarket(market: (typeof markets)[number]) {
+          const priced = priceFromOutcomes(market, published);
+          if (!priced) return null;
+
+          return (
+            <div key={market.id}>
+              <div className="flex items-baseline gap-2 mb-1.5">
+                <span className="text-xs font-semibold text-gray-200">{market.label}</span>
+                <span className="text-[10px] text-gray-600 truncate">{market.description}</span>
+              </div>
+
+              <div className="flex gap-2">
+                {market.choices.map((choice) => {
+                  const pct = Math.round(priced[choice.id] * 100);
+                  const selected = isSelected(String(fixtureId), choice.id);
+                  // One selection per fixture, so a second market on the same
+                  // match replaces the first rather than adding to it. The size
+                  // cap can only be reached by a fixture not already staged.
+                  const full = !selected && !isStaged(String(fixtureId)) && !canStage(String(fixtureId));
+                  const blocked = over || full;
+
+                  return (
+                    <button
+                      key={choice.id}
+                      onClick={() => {
+                        if (selected) {
+                          deselect(String(fixtureId));
+                          return;
+                        }
+                        if (blocked) return;
+                        select({
+                          fixtureId: String(fixtureId),
+                          home: homeTeamName,
+                          away: awayTeamName,
+                          market: market.id,
+                          pick: choice.id,
+                          confidence: pct,
+                          kickoff,
+                        });
+                      }}
+                      disabled={blocked && !selected}
+                      aria-pressed={selected}
+                      aria-label={`${selectionLabel(market.id, choice.id, homeTeamName, awayTeamName)} ${pct}%`}
+                      title={
+                        over
+                          ? "This match has already kicked off"
+                          : full
+                          ? `Slip is full — ${MAX_SELECTIONS} selections maximum.`
+                          : undefined
+                      }
+                      className={clsx(
+                        "flex-1 min-w-0 rounded px-2 py-2 flex flex-col items-center gap-0.5 border transition-all",
+                        selected
+                          ? "bg-brand-green text-black border-brand-accent"
+                          : blocked
+                          ? "bg-brand-dark-4 border-transparent opacity-40 cursor-not-allowed"
+                          : "bg-brand-dark-4 border-transparent hover:border-brand-accent"
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          "text-[10px] leading-tight truncate max-w-full",
+                          selected ? "text-black/60" : "text-gray-500"
+                        )}
+                      >
+                        {selectionLabel(market.id, choice.id, homeTeamName, awayTeamName)}
+                      </span>
+                      <span
+                        className={clsx(
+                          "text-sm font-bold leading-none",
+                          selected ? "text-black" : "text-brand-accent"
+                        )}
+                      >
+                        {pct}%
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+  }
 
   return (
     <div className="px-4 py-4 space-y-4 border-t border-brand-dark-5">
@@ -95,88 +189,24 @@ export default function MatchDerivedMarkets({
         <span className="text-[10px] text-gray-600">from our model</span>
       </div>
 
-      {markets.map((market) => {
-        const priced = priceFromOutcomes(market, outcomes);
-        if (!priced) return null;
+      {measured.length > 0 && (
+        <div className="space-y-4">{measured.map(renderMarket)}</div>
+      )}
 
-        return (
-          <div key={market.id}>
-            <div className="flex items-baseline gap-2 mb-1.5">
-              <span className="text-xs font-semibold text-gray-200">{market.label}</span>
-              <span className="text-[10px] text-gray-600 truncate">{market.description}</span>
-            </div>
-
-            <div className="flex gap-2">
-              {market.choices.map((choice) => {
-                const pct = Math.round(priced[choice.id] * 100);
-                const selected = isSelected(String(fixtureId), choice.id);
-                // One selection per fixture, so a second market on the same
-                // match replaces the first rather than adding to it. The size
-                // cap can only be reached by a fixture not already staged.
-                const full = !selected && !isStaged(String(fixtureId)) && !canStage(String(fixtureId));
-                const blocked = over || full;
-
-                return (
-                  <button
-                    key={choice.id}
-                    onClick={() => {
-                      if (selected) {
-                        deselect(String(fixtureId));
-                        return;
-                      }
-                      if (blocked) return;
-                      select({
-                        fixtureId: String(fixtureId),
-                        home: homeTeamName,
-                        away: awayTeamName,
-                        market: market.id,
-                        pick: choice.id,
-                        confidence: pct,
-                        kickoff,
-                      });
-                    }}
-                    disabled={blocked && !selected}
-                    aria-pressed={selected}
-                    aria-label={`${selectionLabel(market.id, choice.id, homeTeamName, awayTeamName)} ${pct}%`}
-                    title={
-                      over
-                        ? "This match has already kicked off"
-                        : full
-                        ? `Slip is full — ${MAX_SELECTIONS} selections maximum.`
-                        : undefined
-                    }
-                    className={clsx(
-                      "flex-1 min-w-0 rounded px-2 py-2 flex flex-col items-center gap-0.5 border transition-all",
-                      selected
-                        ? "bg-brand-green text-black border-brand-accent"
-                        : blocked
-                        ? "bg-brand-dark-4 border-transparent opacity-40 cursor-not-allowed"
-                        : "bg-brand-dark-4 border-transparent hover:border-brand-accent"
-                    )}
-                  >
-                    <span
-                      className={clsx(
-                        "text-[10px] leading-tight truncate max-w-full",
-                        selected ? "text-black/60" : "text-gray-500"
-                      )}
-                    >
-                      {selectionLabel(market.id, choice.id, homeTeamName, awayTeamName)}
-                    </span>
-                    <span
-                      className={clsx(
-                        "text-sm font-bold leading-none",
-                        selected ? "text-black" : "text-brand-accent"
-                      )}
-                    >
-                      {pct}%
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {unmeasured.length > 0 && (
+        <details className="border-t border-brand-dark-5 pt-3">
+          <summary className="cursor-pointer text-xs font-semibold text-gray-300 hover:text-white">
+            More markets ({unmeasured.length}) — percentages not shown to beat the season average
+          </summary>
+          <p className="text-[10px] text-gray-500 leading-relaxed mt-2 mb-3">
+            These settle correctly and the maths is right, but backtesting over three league
+            seasons found their percentages no more accurate than simply quoting how often the
+            outcome happens in general. The model knows the gap between two sides, not how many
+            goals they will combine for. Treat the numbers as decoration, not information.
+          </p>
+          <div className="space-y-4">{unmeasured.map(renderMarket)}</div>
+        </details>
+      )}
 
       {/* A draw no bet pick that ends level is returned, not lost. Saying so
           where the choice is made rather than in a help page. */}

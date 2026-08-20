@@ -33,18 +33,30 @@ describe("every market adds up the way its shape implies", () => {
   /**
    * How many times over each market covers the grid.
    *
-   * Most markets partition it, so their choices sum to the grid's own total —
-   * which is just under one, since the tail past MAX_GOALS is dropped. Double
-   * Chance covers two of three results per choice, so its three choices cover
-   * everything twice. Draw No Bet renormalises onto the decisive fixtures and
-   * sums to exactly one regardless.
+   * Three shapes, and the distinction is the point rather than bookkeeping:
+   *
+   * - Most markets partition the outcome space, so their choices sum to the
+   *   grid's own total — just under one, since the tail past MAX_GOALS is gone.
+   * - Draw No Bet and the Asian handicaps drop the fixtures that void and
+   *   renormalise onto the rest, so they sum to exactly one however much mass
+   *   the grid is carrying.
+   * - Double Chance covers two of three results per choice, so its choices
+   *   cover everything twice; combining it with a two-way market keeps that.
+   * - Multi Goals overlaps itself deliberately — 1–2 and 1–3 are both offered —
+   *   so it covers the grid whatever the ranges happen to add up to, and the
+   *   only claim worth making is that nothing is negative.
    */
-  const coverage = (id: string) => (id === "double_chance" ? 2 : id === "dnb" ? null : 1);
+  const renormalised = (id: string) => id === "dnb" || id.startsWith("ah_");
+  const doubleCovering = (id: string) => id === "double_chance" || id.startsWith("dc_");
+  const overlapping = (id: string) => id === "multi_goals";
 
   it.each(MARKETS.map((m) => [m.id, m] as const))("%s covers the grid as expected", (id, m) => {
+    if (overlapping(id)) return;
     const total = Object.values(priceMarket(m, grid)).reduce((a, b) => a + b, 0);
-    const times = coverage(id);
-    expect(total).toBeCloseTo(times === null ? 1 : sumGrid(grid, () => true) * times, 9);
+    const expected = renormalised(id)
+      ? 1
+      : sumGrid(grid, () => true) * (doubleCovering(id) ? 2 : 1);
+    expect(total).toBeCloseTo(expected, 9);
   });
 
   it.each(MARKETS.map((m) => [m.id, m] as const))("%s prices nothing negative", (_id, m) => {
@@ -151,6 +163,120 @@ describe("draw no bet", () => {
   });
 });
 
+describe("scorelines and totals", () => {
+  it("settles an exact total, with a bucket above five", () => {
+    expect(settlePick("exact_goals", "2", finished(1, 1))).toBe("correct");
+    expect(settlePick("exact_goals", "2", finished(2, 0))).toBe("correct");
+    expect(settlePick("exact_goals", "3", finished(1, 1))).toBe("wrong");
+    expect(settlePick("exact_goals", "6plus", finished(4, 2))).toBe("correct");
+    expect(settlePick("exact_goals", "6plus", finished(5, 4))).toBe("correct");
+    expect(settlePick("exact_goals", "6plus", finished(3, 2))).toBe("wrong");
+  });
+
+  it("settles bands inclusively at both ends", () => {
+    expect(settlePick("goal_bands", "2_3", finished(2, 0))).toBe("correct");
+    expect(settlePick("goal_bands", "2_3", finished(2, 1))).toBe("correct");
+    expect(settlePick("goal_bands", "2_3", finished(2, 2))).toBe("wrong");
+    expect(settlePick("goal_bands", "0_1", finished(0, 0))).toBe("correct");
+  });
+
+  it("settles a correct score, and buckets anything past 3–3", () => {
+    expect(settlePick("correct_score", "2_1", finished(2, 1))).toBe("correct");
+    expect(settlePick("correct_score", "2_1", finished(1, 2))).toBe("wrong");
+    expect(settlePick("correct_score", "other", finished(4, 2))).toBe("correct");
+    expect(settlePick("correct_score", "other", finished(2, 4))).toBe("correct");
+    // A 4-2 must not settle every listed scoreline as wrong with nothing right.
+    expect(settlePick("correct_score", "other", finished(3, 3))).toBe("wrong");
+  });
+
+  it("isolates one side for a team total", () => {
+    expect(settlePick("team_total_home_1_5", "over", finished(2, 0))).toBe("correct");
+    expect(settlePick("team_total_home_1_5", "over", finished(1, 5))).toBe("wrong");
+    expect(settlePick("team_total_away_0_5", "over", finished(0, 1))).toBe("correct");
+    expect(settlePick("team_total_away_0_5", "under", finished(3, 0))).toBe("correct");
+  });
+
+  it("reads a clean sheet from what the other side scored", () => {
+    expect(settlePick("clean_sheet_home", "yes", finished(0, 0))).toBe("correct");
+    expect(settlePick("clean_sheet_home", "yes", finished(3, 1))).toBe("wrong");
+    expect(settlePick("clean_sheet_away", "yes", finished(0, 2))).toBe("correct");
+  });
+
+  it("needs both halves of win to nil", () => {
+    expect(settlePick("win_to_nil_home", "yes", finished(1, 0))).toBe("correct");
+    // Won, but conceded.
+    expect(settlePick("win_to_nil_home", "yes", finished(3, 1))).toBe("wrong");
+    // Clean sheet, but did not win.
+    expect(settlePick("win_to_nil_home", "yes", finished(0, 0))).toBe("wrong");
+  });
+});
+
+describe("handicaps", () => {
+  it("keeps the draw playable on a European line", () => {
+    // Home -1: a 2-1 becomes 1-1, which is the draw rather than a home win.
+    expect(settlePick("eh_m1", "draw", finished(2, 1))).toBe("correct");
+    expect(settlePick("eh_m1", "home", finished(2, 1))).toBe("wrong");
+    expect(settlePick("eh_m1", "home", finished(3, 1))).toBe("correct");
+    expect(settlePick("eh_m1", "away", finished(1, 1))).toBe("correct");
+  });
+
+  it("never pushes on a half line", () => {
+    for (const id of ["ah_m0_5", "ah_m1_5", "ah_p0_5", "ah_p1_5"]) {
+      for (let h = 0; h <= 4; h++) {
+        for (let a = 0; a <= 4; a++) {
+          expect(settlePick(id, "home", finished(h, a))).not.toBe("push");
+        }
+      }
+    }
+  });
+
+  it("pushes on a whole line that lands level", () => {
+    // Home -1 with a 2-1: the margin is exactly the handicap, so the stake
+    // comes back rather than the pick being scored either way.
+    expect(settlePick("ah_m1", "home", finished(2, 1))).toBe("push");
+    expect(settlePick("ah_m1", "away", finished(2, 1))).toBe("push");
+    expect(settlePick("ah_m1", "home", finished(3, 1))).toBe("correct");
+    expect(settlePick("ah_m1", "away", finished(3, 1))).toBe("wrong");
+  });
+
+  it("offers no quarter lines, which it could not settle honestly", () => {
+    // A quarter line settles half win, half stake back. A pick records one of
+    // correct, wrong or push and cannot express half of anything, so these are
+    // absent rather than settled wrongly.
+    expect(MARKETS.filter((m) => m.id.startsWith("ah_")).map((m) => m.id)).not.toContain("ah_m0_25");
+    expect(MARKETS.every((m) => !m.id.includes("_25"))).toBe(true);
+  });
+});
+
+describe("combinations", () => {
+  it("needs both halves of a result-and-goals combo", () => {
+    expect(settlePick("result_btts", "home_yes", finished(2, 1))).toBe("correct");
+    // Home won, but the away side did not score.
+    expect(settlePick("result_btts", "home_yes", finished(2, 0))).toBe("wrong");
+    expect(settlePick("result_btts", "home_no", finished(2, 0))).toBe("correct");
+    expect(settlePick("result_ou_2_5", "away_over", finished(1, 3))).toBe("correct");
+    expect(settlePick("result_ou_2_5", "away_over", finished(0, 1))).toBe("wrong");
+  });
+
+  it("prices a combo as the joint, not the product", () => {
+    // The reason these are markets rather than two slip selections: the two
+    // conditions are correlated, and multiplying them would be wrong. Home win
+    // and over 2.5 is not P(home) x P(over).
+    const priced = priceMarket(marketById("result_ou_2_5")!, grid);
+    const joint = priced.home_over;
+    const home = priceMarket(marketById("1x2")!, grid).home;
+    const over = priceMarket(marketById("ou_2_5")!, grid).over;
+    expect(joint).not.toBeCloseTo(home * over, 3);
+  });
+
+  it("partitions the outcome space across its choices", () => {
+    for (const id of ["result_btts", "result_ou_2_5", "btts_ou_2_5"]) {
+      const total = Object.values(priceMarket(marketById(id)!, grid)).reduce((a, b) => a + b, 0);
+      expect(total).toBeCloseTo(sumGrid(grid, () => true), 9);
+    }
+  });
+});
+
 describe("what cannot be settled stays pending", () => {
   const base: SettlementFixture = { finished: true, outcome: "home", goals90: { home: 2, away: 1 } };
 
@@ -197,25 +323,66 @@ describe("the catalogue is the allowlist", () => {
     }
   });
 
-  it("rejects a market that measured badly, however valid its choice", () => {
-    // btts:yes is a real, correct, tested selection. It is refused because the
-    // backtest said its fixture-specific price is worse than the season
-    // average, and there is no point offering a number like that.
-    expect(MARKETS.some((m) => m.id === "btts")).toBe(true);
-    expect(isValidSelection("btts", "yes")).toBe(false);
-    expect(isValidSelection("ou_2_5", "over")).toBe(false);
-    expect(isValidSelection("odd_even", "odd")).toBe(false);
+  it("keeps the measurement attached to every market it offers", () => {
+    // The markets that measured badly are shown rather than hidden, which is
+    // only defensible while the finding travels with them. A market that lost
+    // its evidence would be indistinguishable on screen from one that earned
+    // its number.
+    for (const m of OFFERED_MARKETS) {
+      expect(["beats-base-rate", "no-better-than-base-rate", "unmeasured"]).toContain(m.evidence);
+    }
   });
 
-  it("still settles a withdrawn market, so no pick is ever stranded", () => {
-    // The gate is on making new picks, not on honouring old ones. If a market
-    // is ever withdrawn after someone has picked it, that pick must still
-    // resolve rather than sit pending forever.
+  it("does not quietly promote a market that measured badly", () => {
+    // These three were measured across three seasons and lost to their own base
+    // rate every time. They may be offered; they may not claim to be good.
+    for (const id of ["btts", "ou_2_5", "odd_even"]) {
+      expect(marketById(id)!.evidence).toBe("no-better-than-base-rate");
+    }
+  });
+
+  it("credits only the markets the backtest actually cleared", () => {
+    // Pinned as a list because the badge is a claim about measurement, and a
+    // market drifting into it without being re-measured would make the badge
+    // worthless. Update this when scripts/backtest.ts --markets is re-run.
+    expect(
+      MARKETS.filter((m) => m.evidence === "beats-base-rate")
+        .map((m) => m.id)
+        .sort()
+    ).toEqual([
+      "1x2",
+      "ah_m0_5",
+      "ah_m1",
+      "ah_m1_5",
+      "ah_m2",
+      "ah_p0_5",
+      "dnb",
+      "double_chance",
+      "eh_m1",
+      "eh_m2",
+      "eh_p1",
+      "team_total_home_2_5",
+      "win_to_nil_home",
+    ]);
+  });
+
+  it("credits margin-shaped markets and not total-shaped ones", () => {
+    // The finding, stated as a property rather than a list: what the model
+    // knows is the gap between the two sides, not how many they combine for.
+    // Every over/under line asks about the total, and none of them qualify.
+    for (const m of MARKETS.filter((m) => m.id.startsWith("ou_"))) {
+      expect(m.evidence).toBe("no-better-than-base-rate");
+    }
+    // Handicaps ask about the margin, and the negative lines all qualify.
+    for (const id of ["ah_m0_5", "ah_m1", "ah_m1_5", "ah_m2"]) {
+      expect(marketById(id)!.evidence).toBe("beats-base-rate");
+    }
+  });
+
+  it("settles a market regardless of what its evidence says", () => {
+    // Settlement is about what happened, not about whether the price was good.
     expect(settlePick("btts", "yes", finished(1, 1))).toBe("correct");
-  });
-
-  it("offers only what the backtest cleared", () => {
-    expect(OFFERED_MARKETS.map((m) => m.id).sort()).toEqual(["1x2", "dnb", "double_chance"]);
+    expect(settlePick("correct_score", "2_1", finished(2, 1))).toBe("correct");
   });
 
   it("rejects anything else", () => {
