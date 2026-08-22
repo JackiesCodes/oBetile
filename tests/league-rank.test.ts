@@ -111,6 +111,10 @@ describe("age-grade football sorts below the senior game", () => {
 });
 
 describe("men's takes precedence, women's is ranked on the same basis", () => {
+  const WOMENS_CHAMPIONS_LEAGUE = 525;
+  const WSL = 44;
+  const LIGA_F = 142;
+  const SERIE_A_WOMEN = 139;
   const FRAUEN_BUNDESLIGA = 82;
   const BUNDESLIGA = 78;
   const EREDIVISIE_WOMEN = 91;
@@ -155,6 +159,23 @@ describe("men's takes precedence, women's is ranked on the same basis", () => {
     // Damallsvenskan has no men's equivalent in the ranked list, so it sits in
     // the unranked middle — the same place Sweden's men's league sits.
     expect(leagueRank(549, "Damallsvenskan")).toBe(leagueRank(undefined, "Some Other League"));
+  });
+
+  it("leads the women's block with the same competitions the men's list leads with", () => {
+    // The women's block mirrors the men's tiering exactly, so its first four
+    // are the counterparts of the men's first four.
+    const order = [WOMENS_CHAMPIONS_LEAGUE, WSL, LIGA_F, SERIE_A_WOMEN, FRAUEN_BUNDESLIGA];
+    const ranks = order.map((id) => leagueRank(id, "Women"));
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+    expect(new Set(ranks).size).toBe(ranks.length);
+  });
+
+  it("pairs a league with a league, never with a cup", () => {
+    // Italy's entry pointed at Serie A Cup Women, a cup, where the league is
+    // Serie A Women. Both exist and the ids are one digit apart in neither
+    // direction, so nothing about the number would have given it away.
+    expect(WOMENS_EQUIVALENT[139]).toBe(135);
+    expect(WOMENS_EQUIVALENT[1198]).toBeUndefined();
   });
 
   it("maps every entry to a competition that is actually ranked", () => {

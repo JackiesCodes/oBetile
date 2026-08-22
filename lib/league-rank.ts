@@ -76,14 +76,24 @@ const RANK_BY_ID = new Map(RANKED_LEAGUE_IDS.map((id, i) => [id, i]));
  * above an unranked men's league — as the fifth-ranked competition of its own
  * block — and below Ligue 1.
  *
- * Every id here was read off a real day of fixtures. A women's competition
- * whose men's counterpart is not in the ranked list is not in this map either,
- * and lands in the unranked middle exactly as that men's counterpart would.
+ * Every id here was read from the provider's own league list for that country
+ * rather than recalled, which is also how an earlier version's mistake showed
+ * up: Italy's entry pointed at "Serie A Cup Women", a cup, where the league is
+ * "Serie A Women" (139). Only leagues are paired with leagues.
+ *
+ * A women's competition whose men's counterpart is not in the ranked list is
+ * not in this map either, and lands in the unranked middle exactly as that
+ * men's counterpart would. France's D1 and Portugal's top flight are absent for
+ * that reason and not by judgement — add them the day their ids are checked.
  */
 export const WOMENS_EQUIVALENT: Record<number, number> = {
-  1198: 135, // Serie A Cup Women (Italy) -> Serie A
+  525: 2, // UEFA Champions League Women -> UEFA Champions League
+  44: 39, // FA WSL (England) -> Premier League
+  142: 140, // Primera División Femenina / Liga F (Spain) -> La Liga
+  139: 135, // Serie A Women (Italy) -> Serie A
   82: 78, // Frauen Bundesliga -> Bundesliga
   91: 88, // Eredivisie Women -> Eredivisie
+  699: 40, // Women's Championship (England) -> Championship
   74: 71, // Brasileiro Women -> Serie A (Brazil)
   254: 253, // NWSL Women -> Major League Soccer
   669: 345, // 1. Liga Women (Czechia) -> Czech Liga
