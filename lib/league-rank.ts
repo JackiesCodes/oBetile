@@ -66,6 +66,40 @@ export const TOP_TIER_COUNT = 8;
 const RANK_BY_ID = new Map(RANKED_LEAGUE_IDS.map((id, i) => [id, i]));
 
 /**
+ * Women's competitions, and the men's competition whose standing they share.
+ *
+ * The rule asked for is that men's football takes precedence while women's
+ * football is ranked on exactly the same basis. So these are not interleaved
+ * with their men's counterparts, and they are not dropped into the unranked
+ * mass either: every ranked men's competition comes first, then the women's
+ * competitions in the identical tier order. Frauen Bundesliga therefore sits
+ * above an unranked men's league — as the fifth-ranked competition of its own
+ * block — and below Ligue 1.
+ *
+ * Every id here was read off a real day of fixtures. A women's competition
+ * whose men's counterpart is not in the ranked list is not in this map either,
+ * and lands in the unranked middle exactly as that men's counterpart would.
+ */
+export const WOMENS_EQUIVALENT: Record<number, number> = {
+  1198: 135, // Serie A Cup Women (Italy) -> Serie A
+  82: 78, // Frauen Bundesliga -> Bundesliga
+  91: 88, // Eredivisie Women -> Eredivisie
+  74: 71, // Brasileiro Women -> Serie A (Brazil)
+  254: 253, // NWSL Women -> Major League Soccer
+  669: 345, // 1. Liga Women (Czechia) -> Czech Liga
+  733: 332, // I Liga Women (Slovakia) -> Super Liga
+};
+
+/**
+ * Where the women's block starts.
+ *
+ * Comfortably past the ranked men's list and comfortably before UNRANKED, so
+ * the block keeps its internal tier order and neither collides with the men's
+ * ranks nor slips below unranked football.
+ */
+const WOMENS_BLOCK = 100;
+
+/**
  * Competitions below the senior game, whatever country they are in.
  *
  * Age-grade and reserve football is a fact about the competition rather than a
@@ -90,6 +124,15 @@ export function leagueRank(leagueId: number | undefined, name: string | undefine
   if (leagueId !== undefined) {
     const explicit = RANK_BY_ID.get(leagueId);
     if (explicit !== undefined) return explicit;
+
+    // A women's competition takes its standing from the men's competition it
+    // matches, placed in a block after the men's list rather than interleaved
+    // with it.
+    const mens = WOMENS_EQUIVALENT[leagueId];
+    if (mens !== undefined) {
+      const mensRank = RANK_BY_ID.get(mens);
+      if (mensRank !== undefined) return WOMENS_BLOCK + mensRank;
+    }
   }
   if (name && BELOW_SENIOR.test(name)) return AGE_GRADE;
   return UNRANKED;

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import LeagueSection from "@/components/LeagueSection";
 import { compareLeagues } from "@/lib/league-rank";
+import { useFavourites } from "@/context/FavouritesContext";
 import SportsTabBar from "@/components/SportsTabBar";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
@@ -162,6 +163,8 @@ export default function SoccerPage() {
    * England's fixtures listed under the same heading as Bhutan's. Country and
    * name together is the fallback for the rare fixture with no league id.
    */
+  const { isFavourite } = useFavourites();
+
   const grouped = filtered.reduce<
     Record<string, { league: string; country: string; leagueId?: number; matches: Match[] }>
   >((acc, m) => {
@@ -210,7 +213,15 @@ export default function SoccerPage() {
 
           {!loading &&
             Object.entries(grouped)
-              .sort(([, a], [, b]) => compareLeagues(a, b))
+              .sort(([, a], [, b]) => {
+                // A starred league sits above everything, on this page as on
+                // the home feed. Ordering the visitor chose themselves beats
+                // any ranking decided for them.
+                const aFav = a.leagueId ? (isFavourite("league", a.leagueId) ? 1 : 0) : 0;
+                const bFav = b.leagueId ? (isFavourite("league", b.leagueId) ? 1 : 0) : 0;
+                if (aFav !== bFav) return bFav - aFav;
+                return compareLeagues(a, b);
+              })
               .map(([key, { league, country, leagueId, matches: leagueMatches }]) => (
                 <LeagueSection
                   key={key}

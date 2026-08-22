@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   RANKED_LEAGUE_IDS,
   TOP_TIER_COUNT,
+  WOMENS_EQUIVALENT,
   compareLeagues,
   isTopTier,
   leagueRank,
@@ -98,12 +99,68 @@ describe("age-grade football sorts below the senior game", () => {
     );
   });
 
-  it("makes no rule about women's football", () => {
-    // A senior women's competition sorts with every other unranked senior
-    // league. If it should rank higher that is a decision for the ranked list,
-    // not something inferred from its name.
-    expect(leagueRank(82, "Frauen Bundesliga")).toBe(leagueRank(undefined, "Some Other League"));
-    expect(leagueRank(673, "Liga MX Femenil")).toBe(leagueRank(undefined, "Some Other League"));
+  it("does not treat women's football as age-grade football", () => {
+    // The one thing that must never happen: a senior women's competition
+    // sorted in with under-19s and reserve sides.
+    for (const id of Object.keys(WOMENS_EQUIVALENT).map(Number)) {
+      expect(leagueRank(id, "Women"), String(id)).toBeLessThan(
+        leagueRank(695, "U18 Premier League - North")
+      );
+    }
+  });
+});
+
+describe("men's takes precedence, women's is ranked on the same basis", () => {
+  const FRAUEN_BUNDESLIGA = 82;
+  const BUNDESLIGA = 78;
+  const EREDIVISIE_WOMEN = 91;
+  const EREDIVISIE = 88;
+  const NWSL = 254;
+  const MLS = 253;
+
+  it("puts every ranked men's competition above the women's block", () => {
+    // "Men's supersedes" read as precedence rather than interleaving: the
+    // whole men's list first, then the women's competitions.
+    const lastMens = Math.max(...RANKED_LEAGUE_IDS.map((id) => leagueRank(id, "")));
+    for (const id of Object.keys(WOMENS_EQUIVALENT).map(Number)) {
+      expect(leagueRank(id, "Women"), String(id)).toBeGreaterThan(lastMens);
+    }
+  });
+
+  it("orders the women's block by the same tiering as the men's", () => {
+    // Bundesliga outranks Eredivisie outranks MLS, so the women's block runs
+    // in exactly that order — "honoured the same" means the same tiering, not
+    // an alphabetical afterthought.
+    expect(leagueRank(BUNDESLIGA, "")).toBeLessThan(leagueRank(EREDIVISIE, ""));
+    expect(leagueRank(EREDIVISIE, "")).toBeLessThan(leagueRank(MLS, ""));
+
+    expect(leagueRank(FRAUEN_BUNDESLIGA, "Frauen Bundesliga")).toBeLessThan(
+      leagueRank(EREDIVISIE_WOMEN, "Eredivisie Women")
+    );
+    expect(leagueRank(EREDIVISIE_WOMEN, "Eredivisie Women")).toBeLessThan(
+      leagueRank(NWSL, "NWSL Women")
+    );
+  });
+
+  it("keeps a women's competition above unranked men's football", () => {
+    // The other half of "honoured the same": it is ranked, so it does not fall
+    // into the unranked mass with competitions nobody tiered.
+    expect(leagueRank(FRAUEN_BUNDESLIGA, "Frauen Bundesliga")).toBeLessThan(
+      leagueRank(1031, "Premier League")
+    );
+    expect(leagueRank(NWSL, "NWSL Women")).toBeLessThan(leagueRank(1091, "Tasmania Northern"));
+  });
+
+  it("leaves a women's competition unranked when its men's counterpart is", () => {
+    // Damallsvenskan has no men's equivalent in the ranked list, so it sits in
+    // the unranked middle — the same place Sweden's men's league sits.
+    expect(leagueRank(549, "Damallsvenskan")).toBe(leagueRank(undefined, "Some Other League"));
+  });
+
+  it("maps every entry to a competition that is actually ranked", () => {
+    for (const [womens, mens] of Object.entries(WOMENS_EQUIVALENT)) {
+      expect(RANKED_LEAGUE_IDS, `${womens} -> ${mens}`).toContain(mens);
+    }
   });
 });
 
