@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { sports, countryFlags } from "@/data/matches";
 import LeagueSection from "@/components/LeagueSection";
+import { compareLeagues, leagueRank } from "@/lib/league-rank";
 import SportsTabBar from "@/components/SportsTabBar";
 import CommunityPanel from "@/components/CommunityPanel";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
@@ -193,22 +194,44 @@ export default function HomePage() {
 
   const { isFavourite } = useFavourites();
 
-  const grouped = filtered.reduce<Record<string, { country: string; leagueId?: number; matches: Match[] }>>(
-    (acc, m) => {
-      if (!acc[m.league]) acc[m.league] = { country: m.country, leagueId: m.leagueId, matches: [] };
-      acc[m.league].matches.push(m);
-      return acc;
-    },
-    {}
-  );
+  /*
+   * Grouped by league id, not by name.
+   *
+   * "Premier League" is the name of the top division in England, Wales,
+   * Belarus, Egypt, Russia, Armenia, Kazakhstan, Malta, Hong Kong, Lesotho and
+   * Bhutan, and keying on the name collapsed all of them into one section —
+   * England's fixtures listed under the same heading as Bhutan's. Country and
+   * name together is the fallback for the rare fixture with no league id.
+   */
+  const grouped = filtered.reduce<
+    Record<string, { league: string; country: string; leagueId?: number; matches: Match[] }>
+  >((acc, m) => {
+    const key = m.leagueId !== undefined ? `id:${m.leagueId}` : `name:${m.country}:${m.league}`;
+    if (!acc[key]) {
+      acc[key] = { league: m.league, country: m.country, leagueId: m.leagueId, matches: [] };
+    }
+    acc[key].matches.push(m);
+    return acc;
+  }, {});
 
   // "upcoming" alone is not enough: a cached fixture keeps that status long
   // after kick-off, which was promoting matches that finished hours ago to the
   // top of the page as something to predict.
+  //
+  // Ordered by competition before it is cut to two. Taking the first two in
+  // arrival order put a regional state league under a "Top Matches" heading
+  // while a Champions League tie sat further down the page.
+  const byImportance = (a: Match, b: Match) =>
+    leagueRank(a.leagueId, a.league) - leagueRank(b.leagueId, b.league);
+
+  const liveMatches = matches.filter((m) => m.status === "live").sort(byImportance);
   const featuredMatches =
-    matches.filter((m) => m.status === "live").slice(0, 2).length === 2
-      ? matches.filter((m) => m.status === "live").slice(0, 2)
-      : matches.filter((m) => m.status === "upcoming" && isPickable(m)).slice(0, 2);
+    liveMatches.length >= 2
+      ? liveMatches.slice(0, 2)
+      : matches
+          .filter((m) => m.status === "upcoming" && isPickable(m))
+          .sort(byImportance)
+          .slice(0, 2);
 
   const sportsWithLive = sports.map((s) =>
     s.id === "soccer" ? { ...s, liveCount } : s
@@ -292,13 +315,16 @@ export default function HomePage() {
           {!loading &&
             Object.entries(grouped)
               .sort(([, a], [, b]) => {
+                // A starred league outranks everything: it is the one ordering
+                // the visitor asked for themselves.
                 const aFav = a.leagueId ? (isFavourite("league", a.leagueId) ? 1 : 0) : 0;
                 const bFav = b.leagueId ? (isFavourite("league", b.leagueId) ? 1 : 0) : 0;
-                return bFav - aFav;
+                if (aFav !== bFav) return bFav - aFav;
+                return compareLeagues(a, b);
               })
-              .map(([league, { country, leagueId, matches: leagueMatches }]) => (
+              .map(([key, { league, country, leagueId, matches: leagueMatches }]) => (
                 <LeagueSection
-                  key={league}
+                  key={key}
                   league={league}
                   country={country}
                   leagueId={leagueId}

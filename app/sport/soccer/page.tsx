@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import LeagueSection from "@/components/LeagueSection";
+import { compareLeagues } from "@/lib/league-rank";
 import SportsTabBar from "@/components/SportsTabBar";
 import SeasonPicksPanel from "@/components/SeasonPicksPanel";
 import { Match, APIFixture } from "@/types";
@@ -152,14 +153,25 @@ export default function SoccerPage() {
     return true;
   });
 
-  const grouped = filtered.reduce<Record<string, { country: string; leagueId?: number; matches: Match[] }>>(
-    (acc, m) => {
-      if (!acc[m.league]) acc[m.league] = { country: m.country, leagueId: m.leagueId, matches: [] };
-      acc[m.league].matches.push(m);
-      return acc;
-    },
-    {}
-  );
+  /*
+   * Grouped by league id, not by name.
+   *
+   * "Premier League" is the name of the top division in England, Wales,
+   * Belarus, Egypt, Russia, Armenia, Kazakhstan, Malta, Hong Kong, Lesotho and
+   * Bhutan, and keying on the name collapsed all of them into one section —
+   * England's fixtures listed under the same heading as Bhutan's. Country and
+   * name together is the fallback for the rare fixture with no league id.
+   */
+  const grouped = filtered.reduce<
+    Record<string, { league: string; country: string; leagueId?: number; matches: Match[] }>
+  >((acc, m) => {
+    const key = m.leagueId !== undefined ? `id:${m.leagueId}` : `name:${m.country}:${m.league}`;
+    if (!acc[key]) {
+      acc[key] = { league: m.league, country: m.country, leagueId: m.leagueId, matches: [] };
+    }
+    acc[key].matches.push(m);
+    return acc;
+  }, {});
 
   return (
     <div className="flex flex-col h-full">
@@ -196,9 +208,18 @@ export default function SoccerPage() {
             </div>
           )}
 
-          {!loading && Object.entries(grouped).map(([league, { country, leagueId, matches: leagueMatches }]) => (
-            <LeagueSection key={league} league={league} country={country} leagueId={leagueId} matches={leagueMatches} />
-          ))}
+          {!loading &&
+            Object.entries(grouped)
+              .sort(([, a], [, b]) => compareLeagues(a, b))
+              .map(([key, { league, country, leagueId, matches: leagueMatches }]) => (
+                <LeagueSection
+                  key={key}
+                  league={league}
+                  country={country}
+                  leagueId={leagueId}
+                  matches={leagueMatches}
+                />
+              ))}
 
           {!loading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-3 py-20 text-gray-500">
